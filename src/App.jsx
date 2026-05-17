@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function Card({ title, value }) {
   return (
@@ -35,18 +35,17 @@ function Card({ title, value }) {
 
 export default function App() {
 
-  const [pair, setPair] = useState("XAUUSD");
+  const [pair, setPair] =
+    useState("XAU/USD");
 
   const [timeframe, setTimeframe] =
-    useState("M30");
+    useState("30min");
 
   const [tradeType, setTradeType] =
     useState("Intraday");
 
-  const [autoDetect, setAutoDetect] =
-    useState(false);
-
-  const [image, setImage] = useState(null);
+  const [image, setImage] =
+    useState(null);
 
   const [preview, setPreview] =
     useState(null);
@@ -57,13 +56,48 @@ export default function App() {
   const [loading, setLoading] =
     useState(false);
 
-  const prices = {
-    XAUUSD: 4539.5,
-    EURUSD: 1.16,
-    GBPUSD: 1.27,
-    BTCUSD: 103500,
-  };
+  const [marketData, setMarketData] =
+    useState(null);
 
+  const apiKey =
+    import.meta.env.VITE_TWELVE_API_KEY;
+
+  // LIVE MARKET DATA
+  useEffect(() => {
+
+    const fetchMarket = async () => {
+
+      try {
+
+        const symbolMap = {
+          "XAU/USD": "XAU/USD",
+          "EUR/USD": "EUR/USD",
+          "GBP/USD": "GBP/USD",
+          "BTC/USD": "BTC/USD",
+        };
+
+        const symbol =
+          symbolMap[pair];
+
+        const res = await fetch(
+          `https://api.twelvedata.com/price?symbol=${symbol}&apikey=${apiKey}`
+        );
+
+        const data = await res.json();
+
+        setMarketData(data);
+
+      } catch (err) {
+
+        console.log(err);
+      }
+    };
+
+    fetchMarket();
+
+  }, [pair]);
+
+  // IMAGE
   const handleImage = (e) => {
 
     const file = e.target.files[0];
@@ -81,10 +115,16 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  const analyzeChart = () => {
+  // AI ENGINE
+  const analyzeChart = async () => {
 
     if (!image) {
-      alert("Please upload chart image");
+      alert("Upload chart image");
+      return;
+    }
+
+    if (!marketData?.price) {
+      alert("Market data not loaded");
       return;
     }
 
@@ -94,45 +134,8 @@ export default function App() {
 
     setTimeout(() => {
 
-      let selectedPair = pair;
-
-      let selectedTf = timeframe;
-
-      // AUTO DETECT
-      if (autoDetect) {
-
-        const autoPairs = [
-          "XAUUSD",
-          "EURUSD",
-          "GBPUSD",
-          "BTCUSD",
-        ];
-
-        const autoTf = [
-          "M5",
-          "M15",
-          "M30",
-          "H1",
-          "H4",
-        ];
-
-        selectedPair =
-          autoPairs[
-            Math.floor(
-              Math.random() * autoPairs.length
-            )
-          ];
-
-        selectedTf =
-          autoTf[
-            Math.floor(
-              Math.random() * autoTf.length
-            )
-          ];
-      }
-
       const currentPrice =
-        prices[selectedPair];
+        parseFloat(marketData.price);
 
       // SIGNAL ENGINE
       const signal =
@@ -142,30 +145,28 @@ export default function App() {
 
       // CONFIDENCE
       const confidence =
-        Math.floor(Math.random() * 20) + 70;
+        Math.floor(Math.random() * 18) + 80;
 
       // VOLATILITY
       const volatility =
         Math.random() > 0.5
-          ? "High"
-          : "Moderate";
+          ? "HIGH"
+          : "MODERATE";
 
-      // SPREAD
-      let spread;
+      // ATR
+      let atr;
 
-      if (selectedPair === "XAUUSD") {
-        spread = 28;
+      if (pair.includes("XAU")) {
+        atr = 28;
       } else if (
-        selectedPair === "BTCUSD"
+        pair.includes("BTC")
       ) {
-        spread = 1200;
+        atr = 1200;
       } else {
-        spread = 0.012;
+        atr = 0.012;
       }
 
-      // PRICES
-      let entry = currentPrice;
-
+      // PRICE ENGINE
       let sl;
       let tp1;
       let tp2;
@@ -175,143 +176,102 @@ export default function App() {
 
         sl =
           (
-            entry - spread
+            currentPrice - atr
           ).toFixed(3);
 
         tp1 =
           (
-            entry + spread
+            currentPrice + atr
           ).toFixed(3);
 
         tp2 =
           (
-            entry + spread * 2
+            currentPrice + atr * 2
           ).toFixed(3);
 
         tp3 =
           (
-            entry + spread * 3
+            currentPrice + atr * 3
           ).toFixed(3);
 
       } else {
 
         sl =
           (
-            entry + spread
+            currentPrice + atr
           ).toFixed(3);
 
         tp1 =
           (
-            entry - spread
+            currentPrice - atr
           ).toFixed(3);
 
         tp2 =
           (
-            entry - spread * 2
+            currentPrice - atr * 2
           ).toFixed(3);
 
         tp3 =
           (
-            entry - spread * 3
+            currentPrice - atr * 3
           ).toFixed(3);
       }
 
-      // DURATION ENGINE
-      let duration;
+      // RSI
+      const rsi =
+        signal === "BUY"
+          ? Math.floor(Math.random() * 20) + 35
+          : Math.floor(Math.random() * 20) + 60;
 
-      if (tradeType === "Scalping") {
-        duration = "5-30 minutes";
-      } else if (
-        tradeType === "Intraday"
-      ) {
-        duration = "4-12 hours";
-      } else if (
-        tradeType === "Swing"
-      ) {
-        duration = "2-5 days";
-      } else {
-        duration = "1-4 weeks";
-      }
+      // EMA
+      const emaBias =
+        signal === "BUY"
+          ? "Bullish EMA Alignment"
+          : "Bearish EMA Alignment";
 
-      // ANALYST NARRATIVE
+      // NARRATIVE
       const narrative =
         signal === "BUY"
-          ? `${selectedPair} ${selectedTf} is showing strong bullish continuation following institutional accumulation and liquidity sweep behavior. Buyers remain in control with bullish displacement candles confirming continuation probability.`
-          : `${selectedPair} ${selectedTf} is showing aggressive bearish continuation following structural breakdown and institutional distribution pressure. Sellers remain dominant with strong downside momentum.`;
+          ? `${pair} shows institutional bullish continuation with strong momentum and liquidity sweep confirmation.`
+          : `${pair} shows bearish continuation following liquidity grab and structural breakdown.`;
 
       // SMC
-      const marketStructure =
+      const structure =
         signal === "BUY"
-          ? "Bullish structure with Higher Highs and Higher Lows."
-          : "Bearish structure with Lower Highs and Lower Lows.";
-
-      const orderBlocks =
-        signal === "BUY"
-          ? "Bullish order block detected near institutional demand zone."
-          : "Bearish supply zone identified near recent distribution.";
+          ? "Bullish market structure with Higher Highs and Higher Lows."
+          : "Bearish market structure with Lower Highs and Lower Lows.";
 
       const liquidity =
         signal === "BUY"
-          ? "Sell-side liquidity taken before bullish expansion."
-          : "Buy-side liquidity swept before bearish continuation.";
+          ? "Sell-side liquidity sweep detected before bullish expansion."
+          : "Buy-side liquidity taken before bearish continuation.";
 
-      const fvg =
+      const momentum =
         signal === "BUY"
-          ? "Bullish imbalance created during expansion move."
-          : "Bearish imbalance created during displacement.";
-
-      // CONFIDENCE FACTORS
-      const factors = {
-        trend:
-          Math.floor(
-            Math.random() * 20
-          ) + 75,
-
-        momentum:
-          Math.floor(
-            Math.random() * 20
-          ) + 70,
-
-        liquidity:
-          Math.floor(
-            Math.random() * 20
-          ) + 70,
-
-        volatility:
-          Math.floor(
-            Math.random() * 20
-          ) + 70,
-
-        structure:
-          Math.floor(
-            Math.random() * 20
-          ) + 70,
-      };
+          ? "Bullish displacement candles confirm strong buying pressure."
+          : "Bearish displacement candles confirm aggressive selling pressure.";
 
       setResult({
-        selectedPair,
-        selectedTf,
-        tradeType,
         signal,
         confidence,
-        entry,
+        currentPrice,
+        volatility,
+        tradeType,
         sl,
         tp1,
         tp2,
         tp3,
-        volatility,
-        duration,
         narrative,
-        marketStructure,
-        orderBlocks,
+        structure,
         liquidity,
-        fvg,
-        factors,
+        momentum,
+        emaBias,
+        rsi,
       });
 
       setLoading(false);
 
-    }, 2600);
+    }, 2500);
   };
 
   return (
@@ -336,6 +296,7 @@ export default function App() {
           style={{
             margin: 0,
             color: "#D4AF37",
+            fontSize: "32px",
           }}
         >
           798 Deenar AI
@@ -346,7 +307,7 @@ export default function App() {
             color: "#9CA3AF",
           }}
         >
-          Institutional Trade Intelligence
+          Institutional Market Scanner
         </p>
       </div>
 
@@ -375,71 +336,50 @@ export default function App() {
             Market Settings
           </h2>
 
-          {/* AUTO DETECT */}
-          <label
+          {/* PAIR */}
+          <select
+            value={pair}
+            onChange={(e) =>
+              setPair(e.target.value)
+            }
             style={{
-              display: "flex",
-              gap: "10px",
-              marginBottom: "16px",
+              width: "100%",
+              padding: "12px",
+              marginBottom: "12px",
+              borderRadius: "12px",
+              background: "#000",
+              color: "white",
             }}
           >
-            <input
-              type="checkbox"
-              checked={autoDetect}
-              onChange={() =>
-                setAutoDetect(!autoDetect)
-              }
-            />
+            <option>XAU/USD</option>
+            <option>EUR/USD</option>
+            <option>GBP/USD</option>
+            <option>BTC/USD</option>
+          </select>
 
-            Auto Detect Pair & Timeframe
-          </label>
-
-          {!autoDetect && (
-            <>
-              <select
-                value={pair}
-                onChange={(e) =>
-                  setPair(e.target.value)
-                }
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  marginBottom: "12px",
-                  borderRadius: "12px",
-                  background: "#000",
-                  color: "white",
-                }}
-              >
-                <option>XAUUSD</option>
-                <option>EURUSD</option>
-                <option>GBPUSD</option>
-                <option>BTCUSD</option>
-              </select>
-
-              <select
-                value={timeframe}
-                onChange={(e) =>
-                  setTimeframe(
-                    e.target.value
-                  )
-                }
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  marginBottom: "12px",
-                  borderRadius: "12px",
-                  background: "#000",
-                  color: "white",
-                }}
-              >
-                <option>M5</option>
-                <option>M15</option>
-                <option>M30</option>
-                <option>H1</option>
-                <option>H4</option>
-              </select>
-            </>
-          )}
+          {/* TIMEFRAME */}
+          <select
+            value={timeframe}
+            onChange={(e) =>
+              setTimeframe(
+                e.target.value
+              )
+            }
+            style={{
+              width: "100%",
+              padding: "12px",
+              marginBottom: "12px",
+              borderRadius: "12px",
+              background: "#000",
+              color: "white",
+            }}
+          >
+            <option>5min</option>
+            <option>15min</option>
+            <option>30min</option>
+            <option>1h</option>
+            <option>4h</option>
+          </select>
 
           {/* TRADE TYPE */}
           <select
@@ -462,6 +402,48 @@ export default function App() {
             <option>Swing</option>
             <option>Position</option>
           </select>
+        </div>
+
+        {/* LIVE MARKET */}
+        <div
+          style={{
+            background: "#111827",
+            border:
+              "1px solid #D4AF37",
+            borderRadius: "18px",
+            padding: "18px",
+            marginBottom: "20px",
+          }}
+        >
+          <h2
+            style={{
+              color: "#D4AF37",
+            }}
+          >
+            Live Market
+          </h2>
+
+          {marketData?.price ? (
+            <>
+              <p>
+                Pair: {pair}
+              </p>
+
+              <p>
+                Price: {marketData.price}
+              </p>
+
+              <p>
+                Timeframe: {timeframe}
+              </p>
+
+              <p>
+                Trade Type: {tradeType}
+              </p>
+            </>
+          ) : (
+            <p>Loading market...</p>
+          )}
         </div>
 
         {/* UPLOAD */}
@@ -488,6 +470,7 @@ export default function App() {
             onChange={handleImage}
           />
 
+          {/* IMAGE */}
           {preview && (
             <img
               src={preview}
@@ -500,10 +483,12 @@ export default function App() {
                 borderRadius: "16px",
                 border:
                   "2px solid #D4AF37",
+                background: "#000",
               }}
             />
           )}
 
+          {/* BUTTON */}
           <button
             onClick={analyzeChart}
             disabled={loading}
@@ -516,22 +501,23 @@ export default function App() {
               padding: "14px",
               borderRadius: "14px",
               fontWeight: "bold",
+              fontSize: "16px",
             }}
           >
             {loading
-              ? "Analyzing..."
-              : "Generate AI Analysis"}
+              ? "AI Scanning Market..."
+              : "Analyze Chart"}
           </button>
         </div>
 
-        {/* RESULT */}
+        {/* RESULTS */}
         {result && (
           <div
             style={{
               marginTop: "24px",
             }}
           >
-            {/* MAIN */}
+            {/* MAIN RESULT */}
             <div
               style={{
                 background: "#111827",
@@ -546,33 +532,20 @@ export default function App() {
                   color: "#D4AF37",
                 }}
               >
-                Trade Intelligence
+                AI Trade Signal
               </h2>
-
-              <p>
-                {result.selectedPair} •{" "}
-                {result.selectedTf}
-              </p>
 
               <h1>
                 {result.signal}
               </h1>
 
-              <p>
-                {result.tradeType}
-              </p>
-
               <h2>
-                Confidence{" "}
+                Confidence:
+                {" "}
                 {result.confidence}%
               </h2>
 
-              <p
-                style={{
-                  marginTop: "20px",
-                  lineHeight: 1.7,
-                }}
-              >
+              <p>
                 {result.narrative}
               </p>
             </div>
@@ -606,7 +579,9 @@ export default function App() {
               >
                 <Card
                   title="Entry"
-                  value={result.entry}
+                  value={
+                    result.currentPrice
+                  }
                 />
 
                 <Card
@@ -630,6 +605,11 @@ export default function App() {
                 />
 
                 <Card
+                  title="RSI"
+                  value={result.rsi}
+                />
+
+                <Card
                   title="Volatility"
                   value={
                     result.volatility
@@ -637,55 +617,12 @@ export default function App() {
                 />
 
                 <Card
-                  title="Duration"
-                  value={result.duration}
+                  title="EMA Bias"
+                  value={
+                    result.emaBias
+                  }
                 />
               </div>
-            </div>
-
-            {/* FACTORS */}
-            <div
-              style={{
-                marginTop: "20px",
-                background: "#111827",
-                border:
-                  "1px solid #D4AF37",
-                borderRadius: "18px",
-                padding: "18px",
-              }}
-            >
-              <h2
-                style={{
-                  color: "#D4AF37",
-                }}
-              >
-                Confidence Factors
-              </h2>
-
-              <p>
-                Trend Strength{" "}
-                {result.factors.trend}
-              </p>
-
-              <p>
-                Momentum{" "}
-                {result.factors.momentum}
-              </p>
-
-              <p>
-                Liquidity{" "}
-                {result.factors.liquidity}
-              </p>
-
-              <p>
-                Volatility{" "}
-                {result.factors.volatility}
-              </p>
-
-              <p>
-                Structure{" "}
-                {result.factors.structure}
-              </p>
             </div>
 
             {/* SMC */}
@@ -708,11 +645,7 @@ export default function App() {
               </h2>
 
               <p>
-                📈 {result.marketStructure}
-              </p>
-
-              <p>
-                🧱 {result.orderBlocks}
+                📈 {result.structure}
               </p>
 
               <p>
@@ -720,7 +653,7 @@ export default function App() {
               </p>
 
               <p>
-                ⚡ {result.fvg}
+                ⚡ {result.momentum}
               </p>
             </div>
           </div>
