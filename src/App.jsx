@@ -20,9 +20,6 @@ export default function App() {
   const [tradeType, setTradeType] =
     useState("Intraday");
 
-  const [image, setImage] =
-    useState(null);
-
   const [preview, setPreview] =
     useState(null);
 
@@ -41,7 +38,7 @@ export default function App() {
   const apiKey =
     import.meta.env.VITE_TWELVE_API_KEY;
 
-  // FETCH DATA
+  // FETCH MARKET DATA
   useEffect(() => {
 
     const fetchMarket = async () => {
@@ -73,8 +70,6 @@ export default function App() {
 
     if (!file) return;
 
-    setImage(file);
-
     const reader = new FileReader();
 
     reader.onloadend = async () => {
@@ -96,7 +91,7 @@ export default function App() {
 
         setOcrText(text);
 
-        // PAIR DETECTION
+        // PAIRS
         if (
           text.includes("XAUUSD") ||
           text.includes("GOLD")
@@ -122,24 +117,34 @@ export default function App() {
           setPair("BTC/USD");
         }
 
-        // TIMEFRAME
-        if (text.includes("M5")) {
+        // TIMEFRAMES
+        if (
+          text.includes("M5")
+        ) {
           setTimeframe("5min");
         }
 
-        if (text.includes("M15")) {
+        if (
+          text.includes("M15")
+        ) {
           setTimeframe("15min");
         }
 
-        if (text.includes("M30")) {
+        if (
+          text.includes("M30")
+        ) {
           setTimeframe("30min");
         }
 
-        if (text.includes("H1")) {
+        if (
+          text.includes("H1")
+        ) {
           setTimeframe("1h");
         }
 
-        if (text.includes("H4")) {
+        if (
+          text.includes("H4")
+        ) {
           setTimeframe("4h");
         }
 
@@ -152,7 +157,7 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // ANALYSIS
+  // ANALYZE
   const analyzeChart = async () => {
 
     if (!marketData?.values) {
@@ -184,8 +189,32 @@ export default function App() {
           parseFloat(c.low)
         );
 
+      const opens =
+        candles.map((c) =>
+          parseFloat(c.open)
+        );
+
       const currentPrice =
         closes[closes.length - 1];
+
+      // LAST CANDLES
+      const lastOpen =
+        opens[opens.length - 1];
+
+      const lastClose =
+        closes[closes.length - 1];
+
+      const prevOpen =
+        opens[opens.length - 2];
+
+      const prevClose =
+        closes[closes.length - 2];
+
+      const lastHigh =
+        highs[highs.length - 1];
+
+      const lastLow =
+        lows[lows.length - 1];
 
       // EMA
       const ema20 =
@@ -236,32 +265,37 @@ export default function App() {
       const latestMACD =
         macd[macd.length - 1];
 
-      // TREND ENGINE
-      let trend = "RANGING";
+      // TREND
+      let trend =
+        "RANGING";
 
       if (
         ema20 > ema50 &&
         ema50 > ema200
       ) {
-        trend = "BULLISH";
+        trend =
+          "BULLISH";
       }
 
       if (
         ema20 < ema50 &&
         ema50 < ema200
       ) {
-        trend = "BEARISH";
+        trend =
+          "BEARISH";
       }
 
-      // SIGNAL ENGINE
-      let signal = "HOLD";
+      // SIGNAL
+      let signal =
+        "HOLD";
 
       if (
         trend === "BULLISH" &&
         rsi > 55 &&
         latestMACD.histogram > 0
       ) {
-        signal = "BUY";
+        signal =
+          "BUY";
       }
 
       if (
@@ -269,63 +303,165 @@ export default function App() {
         rsi < 45 &&
         latestMACD.histogram < 0
       ) {
+        signal =
+          "SELL";
+      }
+
+      // PATTERN ENGINE
+      let pattern =
+        "No strong candle pattern";
+
+      let candleScore = 0;
+
+      // BULLISH ENGULFING
+      if (
+        prevClose < prevOpen &&
+        lastClose > lastOpen &&
+        lastClose > prevOpen &&
+        lastOpen < prevClose
+      ) {
+        pattern =
+          "Bullish Engulfing";
+
+        candleScore += 12;
+
+        signal = "BUY";
+      }
+
+      // BEARISH ENGULFING
+      if (
+        prevClose > prevOpen &&
+        lastClose < lastOpen &&
+        lastOpen > prevClose &&
+        lastClose < prevOpen
+      ) {
+        pattern =
+          "Bearish Engulfing";
+
+        candleScore += 12;
+
         signal = "SELL";
       }
 
-      // CONFIDENCE
-      let confidence = 50;
+      // PINBAR
+      const candleBody =
+        Math.abs(
+          lastClose - lastOpen
+        );
 
-      if (trend !== "RANGING") {
-        confidence += 15;
+      const upperWick =
+        lastHigh -
+        Math.max(
+          lastClose,
+          lastOpen
+        );
+
+      const lowerWick =
+        Math.min(
+          lastClose,
+          lastOpen
+        ) - lastLow;
+
+      // BULLISH PINBAR
+      if (
+        lowerWick >
+        candleBody * 2
+      ) {
+
+        pattern =
+          "Bullish Pinbar";
+
+        candleScore += 10;
+
+        signal = "BUY";
+      }
+
+      // BEARISH PINBAR
+      if (
+        upperWick >
+        candleBody * 2
+      ) {
+
+        pattern =
+          "Bearish Pinbar";
+
+        candleScore += 10;
+
+        signal = "SELL";
+      }
+
+      // BREAKOUT
+      const recentHigh =
+        Math.max(
+          ...highs.slice(-15)
+        );
+
+      const recentLow =
+        Math.min(
+          ...lows.slice(-15)
+        );
+
+      let breakout =
+        "No breakout";
+
+      if (
+        currentPrice >
+        recentHigh * 0.999
+      ) {
+
+        breakout =
+          "Bullish breakout";
+
+        candleScore += 8;
       }
 
       if (
-        Math.abs(ema20 - ema50)
-        > atr * 0.3
+        currentPrice <
+        recentLow * 1.001
+      ) {
+
+        breakout =
+          "Bearish breakout";
+
+        candleScore += 8;
+      }
+
+      // CONFIDENCE
+      let confidence = 55;
+
+      if (
+        trend !== "RANGING"
       ) {
         confidence += 10;
       }
+
+      confidence += candleScore;
 
       if (
         latestMACD.histogram > 0 &&
         signal === "BUY"
       ) {
-        confidence += 10;
+        confidence += 8;
       }
 
       if (
         latestMACD.histogram < 0 &&
         signal === "SELL"
       ) {
-        confidence += 10;
+        confidence += 8;
       }
 
       if (
         rsi > 60 ||
         rsi < 40
       ) {
-        confidence += 8;
-      }
-
-      // TRADE TYPE ENGINE
-      let duration = "4-12 Hours";
-
-      if (
-        tradeType === "Scalping"
-      ) {
-        duration = "15-45 Minutes";
+        confidence += 6;
       }
 
       if (
-        tradeType === "Swing"
+        confidence > 95
       ) {
-        duration = "2-5 Days";
-      }
-
-      if (
-        tradeType === "Position"
-      ) {
-        duration = "1-3 Weeks";
+        confidence = 95;
       }
 
       // VOLATILITY
@@ -336,40 +472,36 @@ export default function App() {
         atr >
         currentPrice * 0.003
       ) {
-        volatility = "HIGH";
+        volatility =
+          "HIGH";
       }
 
-      // STRUCTURE
-      const structure =
-        trend === "BULLISH"
-          ? "Bullish market structure with higher highs and higher lows."
-          : trend === "BEARISH"
-          ? "Bearish market structure with lower highs and lower lows."
-          : "Market currently ranging with weak directional structure.";
+      // DURATION
+      let duration =
+        "4-12 Hours";
 
-      // BOS
-      const bos =
-        trend === "BULLISH"
-          ? "Bullish BOS confirmed above recent swing highs."
-          : trend === "BEARISH"
-          ? "Bearish BOS confirmed below recent swing lows."
-          : "No valid BOS detected.";
+      if (
+        tradeType === "Scalping"
+      ) {
+        duration =
+          "15-45 Minutes";
+      }
 
-      // CHOCH
-      const choch =
-        trend === "BULLISH"
-          ? "Bullish continuation structure active."
-          : trend === "BEARISH"
-          ? "Bearish continuation structure active."
-          : "CHOCH not confirmed.";
+      if (
+        tradeType === "Swing"
+      ) {
+        duration =
+          "2-5 Days";
+      }
 
-      // LIQUIDITY
-      const liquidity =
-        trend === "BUY"
-          ? "Buy-side liquidity resting above recent highs."
-          : "Sell-side liquidity resting below recent lows.";
+      if (
+        tradeType === "Position"
+      ) {
+        duration =
+          "1-3 Weeks";
+      }
 
-      // SUPPORT / RESISTANCE
+      // SUPPORT/RESISTANCE
       const resistance =
         Math.max(
           ...highs.slice(-20)
@@ -380,13 +512,15 @@ export default function App() {
           ...lows.slice(-20)
         ).toFixed(3);
 
-      // TP / SL
+      // TP/SL
       let sl;
       let tp1;
       let tp2;
       let tp3;
 
-      if (signal === "BUY") {
+      if (
+        signal === "BUY"
+      ) {
 
         sl =
           (
@@ -437,35 +571,58 @@ export default function App() {
           ).toFixed(3);
       }
 
+      // BOS / CHOCH
+      const bos =
+        signal === "BUY"
+          ? "Bullish BOS confirmed above swing highs."
+          : "Bearish BOS confirmed below swing lows.";
+
+      const choch =
+        signal === "BUY"
+          ? "Bullish continuation structure active."
+          : "Bearish continuation structure active.";
+
+      // LIQUIDITY
+      const liquidity =
+        signal === "BUY"
+          ? "Buy-side liquidity targeted above highs."
+          : "Sell-side liquidity targeted below lows.";
+
+      // STRUCTURE
+      const structure =
+        trend === "BULLISH"
+          ? "Bullish structure with continuation bias."
+          : trend === "BEARISH"
+          ? "Bearish structure with continuation bias."
+          : "Ranging market conditions.";
+
       // NARRATIVE
       const narrative =
-        `${pair} ${timeframe} ${tradeType} setup shows ${trend.toLowerCase()} conditions. EMA alignment, RSI momentum, MACD confirmation, volatility profile, liquidity positioning, BOS/CHOCH structure, and trend continuation models all support a ${signal} bias.`;
+        `${pair} ${timeframe} ${tradeType} setup shows ${signal.toLowerCase()} conditions. Price action engine detected ${pattern}. Momentum profile, EMA trend alignment, volatility structure, breakout analysis, liquidity mapping, BOS/CHOCH continuation, and institutional flow all align toward ${signal}.`;
 
       setResult({
         signal,
-        confidence:
-          Math.min(
-            confidence,
-            95
-          ),
+        confidence,
         currentPrice:
           currentPrice.toFixed(3),
         trend,
-        volatility,
         rsi:
           rsi.toFixed(2),
+        volatility,
+        duration,
+        pattern,
+        breakout,
         support,
         resistance,
-        bos,
-        choch,
-        liquidity,
-        structure,
         sl,
         tp1,
         tp2,
         tp3,
+        bos,
+        choch,
+        liquidity,
+        structure,
         narrative,
-        duration,
       });
 
     } catch (err) {
@@ -511,7 +668,7 @@ export default function App() {
             color: "#aaa",
           }}
         >
-          Institutional Market Scanner
+          Institutional AI Scanner
         </p>
       </div>
 
@@ -678,9 +835,15 @@ export default function App() {
               OCR Detection
             </h2>
 
-            <p>Pair: {pair}</p>
+            <p>
+              Pair: {pair}
+            </p>
 
-            <p>Timeframe: {timeframe}</p>
+            <p>
+              Timeframe:
+              {" "}
+              {timeframe}
+            </p>
           </div>
         )}
 
@@ -752,6 +915,20 @@ export default function App() {
                 Duration:
                 {" "}
                 {result.duration}
+              </p>
+
+              <hr />
+
+              <p>
+                Candle Pattern:
+                {" "}
+                {result.pattern}
+              </p>
+
+              <p>
+                Breakout:
+                {" "}
+                {result.breakout}
               </p>
 
               <hr />
