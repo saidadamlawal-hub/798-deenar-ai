@@ -17,7 +17,8 @@
     "jimp": "^1.6.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "technicalindicators": "^3.1.0"
+    "technicalindicators": "^3.1.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

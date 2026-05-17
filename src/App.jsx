@@ -1,45 +1,13 @@
 import { useEffect, useState } from "react";
 
+import Tesseract from "tesseract.js";
+
 import {
   RSI,
   EMA,
   ATR,
+  MACD,
 } from "technicalindicators";
-
-import { Image } from "image-js";
-
-function Card({ title, value }) {
-  return (
-    <div
-      style={{
-        background: "#000",
-        padding: "14px",
-        borderRadius: "14px",
-        border: "1px solid #333",
-      }}
-    >
-      <p
-        style={{
-          color: "#9CA3AF",
-          margin: 0,
-          fontSize: "13px",
-        }}
-      >
-        {title}
-      </p>
-
-      <p
-        style={{
-          marginTop: "8px",
-          fontWeight: "bold",
-          fontSize: "18px",
-        }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
 
 export default function App() {
 
@@ -64,6 +32,9 @@ export default function App() {
   const [loading, setLoading] =
     useState(false);
 
+  const [ocrText, setOcrText] =
+    useState("");
+
   const [marketData, setMarketData] =
     useState(null);
 
@@ -78,7 +49,7 @@ export default function App() {
       try {
 
         const res = await fetch(
-          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${timeframe}&outputsize=150&apikey=${apiKey}`
+          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${timeframe}&outputsize=200&apikey=${apiKey}`
         );
 
         const data = await res.json();
@@ -96,7 +67,7 @@ export default function App() {
   }, [pair, timeframe]);
 
   // HANDLE IMAGE
-  const handleImage = (e) => {
+  const handleImage = async (e) => {
 
     const file = e.target.files[0];
 
@@ -106,104 +77,98 @@ export default function App() {
 
     const reader = new FileReader();
 
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
+
       setPreview(reader.result);
+
+      // OCR START
+      try {
+
+        const result =
+          await Tesseract.recognize(
+            reader.result,
+            "eng"
+          );
+
+        const text =
+          result.data.text
+            .toUpperCase();
+
+        setOcrText(text);
+
+        // AUTO PAIR DETECT
+        if (
+          text.includes("XAUUSD") ||
+          text.includes("GOLD")
+        ) {
+          setPair("XAU/USD");
+        }
+
+        if (
+          text.includes("EURUSD")
+        ) {
+          setPair("EUR/USD");
+        }
+
+        if (
+          text.includes("GBPUSD")
+        ) {
+          setPair("GBP/USD");
+        }
+
+        if (
+          text.includes("BTCUSD")
+        ) {
+          setPair("BTC/USD");
+        }
+
+        // TIMEFRAME DETECT
+        if (
+          text.includes("M5")
+        ) {
+          setTimeframe("5min");
+        }
+
+        if (
+          text.includes("M15")
+        ) {
+          setTimeframe("15min");
+        }
+
+        if (
+          text.includes("M30")
+        ) {
+          setTimeframe("30min");
+        }
+
+        if (
+          text.includes("H1")
+        ) {
+          setTimeframe("1h");
+        }
+
+        if (
+          text.includes("H4")
+        ) {
+          setTimeframe("4h");
+        }
+
+      } catch (err) {
+
+        console.log(err);
+      }
     };
 
     reader.readAsDataURL(file);
   };
 
-  // IMAGE AI
-  const analyzeImageAI = async () => {
-
-    if (!image) {
-      return {
-        bias: "NEUTRAL",
-        confidenceBoost: 0,
-      };
-    }
-
-    try {
-
-      const buffer =
-        await image.arrayBuffer();
-
-      const img =
-        await Image.load(buffer);
-
-      const data =
-        img.data;
-
-      let bullish = 0;
-      let bearish = 0;
-
-      for (
-        let i = 0;
-        i < data.length;
-        i += 4
-      ) {
-
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // GREEN
-        if (
-          g > r + 25 &&
-          g > b + 20
-        ) {
-          bullish++;
-        }
-
-        // RED
-        if (
-          r > g + 25 &&
-          r > b + 20
-        ) {
-          bearish++;
-        }
-      }
-
-      if (bullish > bearish) {
-        return {
-          bias: "BUY",
-          confidenceBoost: 10,
-        };
-      }
-
-      if (bearish > bullish) {
-        return {
-          bias: "SELL",
-          confidenceBoost: 10,
-        };
-      }
-
-      return {
-        bias: "NEUTRAL",
-        confidenceBoost: 0,
-      };
-
-    } catch (err) {
-
-      console.log(err);
-
-      return {
-        bias: "NEUTRAL",
-        confidenceBoost: 0,
-      };
-    }
-  };
-
-  // MAIN ANALYSIS
+  // ANALYSIS
   const analyzeChart = async () => {
 
-    if (!image) {
-      alert("Upload chart image");
-      return;
-    }
-
     if (!marketData?.values) {
+
       alert("Market data unavailable");
+
       return;
     }
 
@@ -235,97 +200,73 @@ export default function App() {
         closes[closes.length - 1];
 
       // RSI
-      const rsiValues =
+      const rsi =
         RSI.calculate({
           values: closes,
           period: 14,
-        });
-
-      const rsi =
-        rsiValues[
-          rsiValues.length - 1
-        ];
+        }).slice(-1)[0];
 
       // EMA
       const ema20 =
         EMA.calculate({
           values: closes,
           period: 20,
-        });
+        }).slice(-1)[0];
 
       const ema50 =
         EMA.calculate({
           values: closes,
           period: 50,
-        });
-
-      const currentEMA20 =
-        ema20[ema20.length - 1];
-
-      const currentEMA50 =
-        ema50[ema50.length - 1];
+        }).slice(-1)[0];
 
       // ATR
-      const atrValues =
+      const atr =
         ATR.calculate({
           high: highs,
           low: lows,
           close: closes,
           period: 14,
+        }).slice(-1)[0];
+
+      // MACD
+      const macd =
+        MACD.calculate({
+          values: closes,
+          fastPeriod: 12,
+          slowPeriod: 26,
+          signalPeriod: 9,
+          SimpleMAOscillator: false,
+          SimpleMASignal: false,
         });
 
-      const atr =
-        atrValues[
-          atrValues.length - 1
-        ];
+      const latestMACD =
+        macd[macd.length - 1];
 
       // TREND
       const trend =
-        currentEMA20 >
-        currentEMA50
+        ema20 > ema50
           ? "BULLISH"
           : "BEARISH";
 
       // SIGNAL
-      let signal;
-
-      if (
-        trend === "BULLISH" &&
-        rsi < 70
-      ) {
-        signal = "BUY";
-      } else if (
-        trend === "BEARISH" &&
-        rsi > 30
-      ) {
-        signal = "SELL";
-      } else {
-        signal = "HOLD";
-      }
-
-      // IMAGE AI
-      const imageAI =
-        await analyzeImageAI();
-
-      if (
-        imageAI.bias !==
-        "NEUTRAL"
-      ) {
-        signal =
-          imageAI.bias;
-      }
+      let signal =
+        trend === "BULLISH"
+          ? "BUY"
+          : "SELL";
 
       // CONFIDENCE
-      let confidence = 72;
-
-      confidence +=
-        imageAI.confidenceBoost;
+      let confidence = 68;
 
       if (
         Math.abs(
-          currentEMA20 -
-            currentEMA50
-        ) > atr * 0.5
+          ema20 - ema50
+        ) > atr * 0.3
+      ) {
+        confidence += 10;
+      }
+
+      if (
+        latestMACD.histogram > 0
       ) {
         confidence += 8;
       }
@@ -342,6 +283,28 @@ export default function App() {
       ) {
         confidence = 95;
       }
+
+      // BOS / CHOCH
+      const bos =
+        trend === "BULLISH"
+          ? "Bullish BOS confirmed above recent highs."
+          : "Bearish BOS confirmed below recent lows.";
+
+      const choch =
+        trend === "BULLISH"
+          ? "Bullish continuation structure."
+          : "Bearish continuation structure.";
+
+      // SUPPORT / RESISTANCE
+      const resistance =
+        Math.max(
+          ...highs.slice(-20)
+        ).toFixed(3);
+
+      const support =
+        Math.min(
+          ...lows.slice(-20)
+        ).toFixed(3);
 
       // TP / SL
       let sl;
@@ -400,44 +363,31 @@ export default function App() {
           ).toFixed(3);
       }
 
-      // VOLATILITY
-      const volatility =
-        atr >
-        currentPrice * 0.003
-          ? "HIGH"
-          : "MODERATE";
-
-      // STRUCTURE
-      const structure =
-        trend === "BULLISH"
-          ? "Higher highs and higher lows detected."
-          : "Lower highs and lower lows detected.";
-
-      // LIQUIDITY
-      const liquidity =
-        signal === "BUY"
-          ? "Buy-side liquidity resting above highs."
-          : "Sell-side liquidity resting below lows.";
-
-      // NARRATIVE
+      // ANALYST NARRATIVE
       const narrative =
-        `${pair} ${timeframe} ${tradeType} setup shows ${signal} pressure using market structure, RSI, EMA trend engine, ATR volatility, and image-based chart AI.`;
+        `${pair} ${timeframe} ${tradeType} setup shows strong ${signal} pressure. OCR market recognition, EMA trend alignment, RSI momentum, ATR volatility profile, MACD confirmation, and BOS structure engine all align toward ${signal}.`;
 
       setResult({
         signal,
         confidence,
         currentPrice:
           currentPrice.toFixed(3),
+        trend,
+        volatility:
+          atr >
+          currentPrice * 0.003
+            ? "HIGH"
+            : "MODERATE",
+        rsi:
+          rsi.toFixed(2),
+        support,
+        resistance,
+        bos,
+        choch,
         sl,
         tp1,
         tp2,
         tp3,
-        volatility,
-        trend,
-        rsi:
-          rsi.toFixed(2),
-        structure,
-        liquidity,
         narrative,
       });
 
@@ -460,12 +410,12 @@ export default function App() {
         background: "#0b1020",
         color: "white",
         fontFamily: "Arial",
-        paddingBottom: "40px",
       }}
     >
+      {/* HEADER */}
       <div
         style={{
-          padding: "18px",
+          padding: "20px",
           borderBottom:
             "1px solid #D4AF37",
         }}
@@ -481,7 +431,7 @@ export default function App() {
 
         <p
           style={{
-            color: "#9CA3AF",
+            color: "#aaa",
           }}
         >
           Institutional AI Scanner
@@ -520,8 +470,8 @@ export default function App() {
             style={{
               width: "100%",
               padding: "12px",
-              marginBottom: "12px",
               borderRadius: "12px",
+              marginBottom: "12px",
             }}
           >
             <option>XAU/USD</option>
@@ -540,8 +490,8 @@ export default function App() {
             style={{
               width: "100%",
               padding: "12px",
-              marginBottom: "12px",
               borderRadius: "12px",
+              marginBottom: "12px",
             }}
           >
             <option>5min</option>
@@ -586,7 +536,7 @@ export default function App() {
               color: "#D4AF37",
             }}
           >
-            Upload Trading Chart
+            Upload TradingView Chart
           </h2>
 
           <input
@@ -631,11 +581,45 @@ export default function App() {
           </button>
         </div>
 
+        {/* OCR */}
+        {ocrText && (
+          <div
+            style={{
+              marginTop: "20px",
+              background: "#111827",
+              border:
+                "1px solid #D4AF37",
+              borderRadius: "18px",
+              padding: "18px",
+            }}
+          >
+            <h2
+              style={{
+                color: "#D4AF37",
+              }}
+            >
+              OCR Detection
+            </h2>
+
+            <p>
+              Pair:
+              {" "}
+              {pair}
+            </p>
+
+            <p>
+              Timeframe:
+              {" "}
+              {timeframe}
+            </p>
+          </div>
+        )}
+
         {/* RESULTS */}
         {result && (
           <div
             style={{
-              marginTop: "24px",
+              marginTop: "20px",
             }}
           >
             <div
@@ -655,7 +639,9 @@ export default function App() {
                 Trade Intelligence
               </h2>
 
-              <h1>{result.signal}</h1>
+              <h1>
+                {result.signal}
+              </h1>
 
               <h2>
                 Confidence:
@@ -663,7 +649,21 @@ export default function App() {
                 {result.confidence}%
               </h2>
 
-              <p>{result.narrative}</p>
+              <p>
+                {result.narrative}
+              </p>
+
+              <p>
+                Current Price:
+                {" "}
+                {result.currentPrice}
+              </p>
+
+              <p>
+                RSI:
+                {" "}
+                {result.rsi}
+              </p>
 
               <p>
                 Trend:
@@ -672,15 +672,51 @@ export default function App() {
               </p>
 
               <p>
-                Structure:
+                Support:
                 {" "}
-                {result.structure}
+                {result.support}
               </p>
 
               <p>
-                Liquidity:
+                Resistance:
                 {" "}
-                {result.liquidity}
+                {result.resistance}
+              </p>
+
+              <p>
+                BOS:
+                {" "}
+                {result.bos}
+              </p>
+
+              <p>
+                CHOCH:
+                {" "}
+                {result.choch}
+              </p>
+
+              <p>
+                Stop Loss:
+                {" "}
+                {result.sl}
+              </p>
+
+              <p>
+                TP1:
+                {" "}
+                {result.tp1}
+              </p>
+
+              <p>
+                TP2:
+                {" "}
+                {result.tp2}
+              </p>
+
+              <p>
+                TP3:
+                {" "}
+                {result.tp3}
               </p>
             </div>
           </div>
