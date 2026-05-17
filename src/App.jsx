@@ -1,5 +1,13 @@
 import { useState } from "react";
 
+const marketPrices = {
+  XAUUSD: 4539.5,
+  EURUSD: 1.16,
+  GBPUSD: 1.27,
+  USDJPY: 155.2,
+  BTCUSD: 103500,
+};
+
 function Card({ title, value }) {
   return (
     <div
@@ -34,9 +42,14 @@ function Card({ title, value }) {
 }
 
 export default function App() {
+  const [pair, setPair] = useState("XAUUSD");
+  const [timeframe, setTimeframe] = useState("15M");
+
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
+
   const [result, setResult] = useState(null);
+
   const [loading, setLoading] = useState(false);
 
   const handleImage = (e) => {
@@ -57,7 +70,7 @@ export default function App() {
 
   const analyzeChart = () => {
     if (!image) {
-      alert("Please upload a chart image");
+      alert("Please upload chart image");
       return;
     }
 
@@ -66,108 +79,119 @@ export default function App() {
 
     setTimeout(() => {
 
-      // TREND ENGINE
-      const bullishProbability = Math.random();
+      const currentPrice = marketPrices[pair];
+
+      // MARKET TREND ENGINE
+      const marketBias = Math.random();
 
       const signal =
-        bullishProbability > 0.5
+        marketBias > 0.5
           ? "BUY"
           : "SELL";
+
+      // VOLATILITY ENGINE
+      const volatility =
+        pair === "BTCUSD"
+          ? "EXTREME"
+          : Math.random() > 0.5
+          ? "HIGH"
+          : "NORMAL";
 
       // CONFIDENCE ENGINE
       let confidence;
 
-      if (bullishProbability > 0.8 || bullishProbability < 0.2) {
-        confidence = Math.floor(Math.random() * 6) + 92;
+      if (marketBias > 0.8 || marketBias < 0.2) {
+        confidence = Math.floor(Math.random() * 4) + 93;
       } else if (
-        bullishProbability > 0.65 ||
-        bullishProbability < 0.35
+        marketBias > 0.65 ||
+        marketBias < 0.35
       ) {
-        confidence = Math.floor(Math.random() * 8) + 84;
+        confidence = Math.floor(Math.random() * 7) + 85;
       } else {
-        confidence = Math.floor(Math.random() * 10) + 75;
+        confidence = Math.floor(Math.random() * 8) + 76;
       }
 
-      // ENTRY ENGINE
-      const entry = (
-        Math.random() * 100 + 2400
-      ).toFixed(2);
+      // PRICE ENGINE
+      let spread;
 
-      // VOLATILITY ENGINE
-      const volatility =
-        Math.random() > 0.5
-          ? "HIGH"
-          : "NORMAL";
+      if (pair === "XAUUSD") {
+        spread = 8;
+      } else if (pair === "BTCUSD") {
+        spread = 700;
+      } else {
+        spread = 0.008;
+      }
 
-      // RISK ENGINE
-      const riskReward =
-        volatility === "HIGH"
-          ? "1:3.5"
-          : "1:2.2";
+      const entry = currentPrice;
 
       let sl;
       let tp1;
       let tp2;
 
       if (signal === "BUY") {
-        sl = (
-          parseFloat(entry) - 8.5
-        ).toFixed(2);
 
-        tp1 = (
-          parseFloat(entry) + 18
-        ).toFixed(2);
+        sl = (entry - spread).toFixed(2);
 
-        tp2 = (
-          parseFloat(entry) + 32
-        ).toFixed(2);
+        tp1 = (entry + spread * 2).toFixed(2);
+
+        tp2 = (entry + spread * 4).toFixed(2);
 
       } else {
 
-        sl = (
-          parseFloat(entry) + 8.5
-        ).toFixed(2);
+        sl = (entry + spread).toFixed(2);
 
-        tp1 = (
-          parseFloat(entry) - 18
-        ).toFixed(2);
+        tp1 = (entry - spread * 2).toFixed(2);
 
-        tp2 = (
-          parseFloat(entry) - 32
-        ).toFixed(2);
+        tp2 = (entry - spread * 4).toFixed(2);
       }
 
-      // MARKET STRUCTURE
+      // RISK REWARD
+      const riskReward =
+        volatility === "EXTREME"
+          ? "1:4.0"
+          : volatility === "HIGH"
+          ? "1:3.0"
+          : "1:2.0";
+
+      // SESSION ENGINE
+      const sessions = [
+        "London Session Momentum",
+        "New York Reversal Zone",
+        "Asian Session Consolidation",
+      ];
+
+      const session =
+        sessions[
+          Math.floor(Math.random() * sessions.length)
+        ];
+
+      // STRUCTURE ENGINE
       const structure =
         signal === "BUY"
-          ? "Bullish market structure confirmed with higher highs and strong institutional momentum."
-          : "Bearish market structure confirmed with lower highs and strong selling pressure.";
+          ? "Bullish structure detected with higher highs and institutional accumulation."
+          : "Bearish structure detected with lower highs and distribution pressure.";
 
-      // LIQUIDITY
+      // LIQUIDITY ENGINE
       const liquidity =
         signal === "BUY"
-          ? "Liquidity sweep detected below support before bullish expansion."
-          : "Liquidity grab detected above resistance before bearish continuation.";
+          ? "Liquidity sweep below support detected before bullish continuation."
+          : "Buy-side liquidity taken before bearish continuation.";
 
-      // MOMENTUM
+      // MOMENTUM ENGINE
       const momentum =
         signal === "BUY"
-          ? "Momentum indicators show aggressive bullish participation."
-          : "Momentum indicators show aggressive bearish continuation.";
-
-      // SESSION ANALYSIS
-      const session =
-        Math.random() > 0.5
-          ? "London Session Momentum"
-          : "New York Session Volatility";
+          ? "Strong bullish momentum with aggressive displacement candles."
+          : "Strong bearish momentum with institutional selling pressure.";
 
       // AI SUMMARY
       const summary =
         signal === "BUY"
-          ? "AI detected strong bullish continuation probability with institutional accumulation."
-          : "AI detected strong bearish continuation probability with institutional distribution.";
+          ? `AI detected bullish continuation probability on ${pair} ${timeframe}.`
+          : `AI detected bearish continuation probability on ${pair} ${timeframe}.`;
 
       setResult({
+        pair,
+        timeframe,
         signal,
         confidence,
         entry,
@@ -187,7 +211,7 @@ export default function App() {
 
       setLoading(false);
 
-    }, 2800);
+    }, 2500);
   };
 
   return (
@@ -196,8 +220,8 @@ export default function App() {
         minHeight: "100vh",
         background: "#0b1020",
         color: "white",
-        overflowX: "hidden",
         fontFamily: "Arial",
+        overflowX: "hidden",
       }}
     >
       {/* HEADER */}
@@ -216,12 +240,11 @@ export default function App() {
             height: "52px",
             borderRadius: "50%",
             background: "#D4AF37",
-            color: "black",
+            color: "#000",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontWeight: "bold",
-            fontSize: "20px",
           }}
         >
           AI
@@ -241,10 +264,9 @@ export default function App() {
             style={{
               marginTop: "4px",
               color: "#9CA3AF",
-              fontSize: "14px",
             }}
           >
-            Institutional Smart Money Scanner
+            Institutional Market Intelligence
           </p>
         </div>
       </div>
@@ -255,7 +277,72 @@ export default function App() {
           padding: "16px",
         }}
       >
-        {/* UPLOAD CARD */}
+        {/* SETTINGS */}
+        <div
+          style={{
+            background: "#111827",
+            border: "1px solid #D4AF37",
+            borderRadius: "18px",
+            padding: "18px",
+            marginBottom: "20px",
+          }}
+        >
+          <h2
+            style={{
+              marginTop: 0,
+              color: "#D4AF37",
+            }}
+          >
+            Market Settings
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "12px",
+            }}
+          >
+            <select
+              value={pair}
+              onChange={(e) => setPair(e.target.value)}
+              style={{
+                padding: "12px",
+                borderRadius: "12px",
+                background: "#000",
+                color: "white",
+                border: "1px solid #333",
+              }}
+            >
+              <option>XAUUSD</option>
+              <option>EURUSD</option>
+              <option>GBPUSD</option>
+              <option>USDJPY</option>
+              <option>BTCUSD</option>
+            </select>
+
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              style={{
+                padding: "12px",
+                borderRadius: "12px",
+                background: "#000",
+                color: "white",
+                border: "1px solid #333",
+              }}
+            >
+              <option>1M</option>
+              <option>5M</option>
+              <option>15M</option>
+              <option>1H</option>
+              <option>4H</option>
+              <option>1D</option>
+            </select>
+          </div>
+        </div>
+
+        {/* UPLOAD */}
         <div
           style={{
             background: "#111827",
@@ -270,51 +357,35 @@ export default function App() {
               color: "#D4AF37",
             }}
           >
-            Upload Trading Chart
+            Upload Chart
           </h2>
-
-          <p
-            style={{
-              color: "#9CA3AF",
-              fontSize: "14px",
-            }}
-          >
-            TradingView • MT5 • Broker Screenshots
-          </p>
 
           <input
             type="file"
             accept="image/*"
             onChange={handleImage}
             style={{
-              marginTop: "16px",
+              marginTop: "12px",
               width: "100%",
             }}
           />
 
-          {/* PREVIEW */}
           {preview && (
-            <div
+            <img
+              src={preview}
+              alt="preview"
               style={{
+                width: "100%",
+                maxHeight: "320px",
+                objectFit: "contain",
                 marginTop: "18px",
+                borderRadius: "18px",
+                border: "2px solid #D4AF37",
+                background: "#000",
               }}
-            >
-              <img
-                src={preview}
-                alt="preview"
-                style={{
-                  width: "100%",
-                  maxHeight: "320px",
-                  objectFit: "contain",
-                  borderRadius: "18px",
-                  border: "2px solid #D4AF37",
-                  background: "#000",
-                }}
-              />
-            </div>
+            />
           )}
 
-          {/* BUTTON */}
           <button
             onClick={analyzeChart}
             disabled={loading}
@@ -324,15 +395,15 @@ export default function App() {
               background: "#D4AF37",
               color: "#000",
               border: "none",
-              borderRadius: "14px",
               padding: "14px",
+              borderRadius: "14px",
               fontWeight: "bold",
               fontSize: "16px",
             }}
           >
             {loading
-              ? "Scanning Institutional Data..."
-              : "Scan Chart with AI"}
+              ? "Analyzing Market Structure..."
+              : "Scan Market with AI"}
           </button>
         </div>
 
@@ -343,7 +414,6 @@ export default function App() {
               marginTop: "24px",
             }}
           >
-            {/* SIGNAL CARD */}
             <div
               style={{
                 background: "#111827",
@@ -368,6 +438,8 @@ export default function App() {
                   gap: "12px",
                 }}
               >
+                <Card title="Pair" value={result.pair} />
+                <Card title="Timeframe" value={result.timeframe} />
                 <Card title="Signal" value={result.signal} />
                 <Card title="Confidence" value={`${result.confidence}%`} />
                 <Card title="Entry" value={result.entry} />
@@ -379,7 +451,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* AI SUMMARY */}
+            {/* SUMMARY */}
             <div
               style={{
                 marginTop: "20px",
@@ -402,8 +474,8 @@ export default function App() {
 
               <p
                 style={{
-                  color: "#9CA3AF",
                   marginTop: "12px",
+                  color: "#9CA3AF",
                 }}
               >
                 Session Bias: {result.session}
@@ -429,17 +501,9 @@ export default function App() {
                 Institutional Analysis
               </h2>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <p>📈 {result.analysis.structure}</p>
-                <p>💧 {result.analysis.liquidity}</p>
-                <p>⚡ {result.analysis.momentum}</p>
-              </div>
+              <p>📈 {result.analysis.structure}</p>
+              <p>💧 {result.analysis.liquidity}</p>
+              <p>⚡ {result.analysis.momentum}</p>
             </div>
           </div>
         )}
