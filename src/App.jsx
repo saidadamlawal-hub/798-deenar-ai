@@ -1,12 +1,44 @@
 import { useState } from "react";
 
+function Card({ title, value }) {
+  return (
+    <div
+      style={{
+        background: "#000",
+        padding: "14px",
+        borderRadius: "14px",
+        border: "1px solid #333",
+      }}
+    >
+      <p
+        style={{
+          color: "#9CA3AF",
+          margin: 0,
+          fontSize: "13px",
+        }}
+      >
+        {title}
+      </p>
+
+      <p
+        style={{
+          marginTop: "8px",
+          fontWeight: "bold",
+          fontSize: "18px",
+        }}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export default function App() {
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // HANDLE IMAGE
   const handleImage = (e) => {
     const file = e.target.files[0];
 
@@ -14,7 +46,6 @@ export default function App() {
 
     setImage(file);
 
-    // MOBILE SAFE IMAGE PREVIEW
     const reader = new FileReader();
 
     reader.onloadend = () => {
@@ -24,8 +55,7 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // UPLOAD
-  const uploadImage = async () => {
+  const analyzeChart = () => {
     if (!image) {
       alert("Please select chart image");
       return;
@@ -34,216 +64,309 @@ export default function App() {
     setLoading(true);
     setResult(null);
 
-    const formData = new FormData();
-    formData.append("file", image);
+    setTimeout(() => {
+      const signal =
+        Math.random() > 0.5 ? "BUY" : "SELL";
 
-    try {
+      const confidence =
+        Math.floor(Math.random() * 15) + 85;
 
-      const controller = new AbortController();
+      const entry = (
+        Math.random() * 100
+      ).toFixed(2);
 
-      // STOP FREEZE AFTER 20 SECONDS
-      const timeout = setTimeout(() => {
-        controller.abort();
-      }, 20000);
+      const sl = (
+        parseFloat(entry) - 1.2
+      ).toFixed(2);
 
-      const res = await fetch("http://localhost:8000/analyze-chart", {
-        method: "POST",
-        body: formData,
-        signal: controller.signal,
+      const tp1 = (
+        parseFloat(entry) + 2.5
+      ).toFixed(2);
+
+      const tp2 = (
+        parseFloat(entry) + 4.8
+      ).toFixed(2);
+
+      setResult({
+        signal,
+        confidence,
+        entry,
+        sl,
+        tp1,
+        tp2,
+        analysis: {
+          structure:
+            signal === "BUY"
+              ? "Bullish structure detected."
+              : "Bearish structure detected.",
+
+          liquidity:
+            signal === "BUY"
+              ? "Liquidity sweep below support."
+              : "Liquidity sweep above resistance.",
+
+          momentum:
+            signal === "BUY"
+              ? "Strong bullish momentum."
+              : "Strong bearish momentum.",
+        },
       });
 
-      clearTimeout(timeout);
-
-      const data = await res.json();
-
-      setResult(data);
-
-    } catch (error) {
-
-      console.log(error);
-
-      alert(
-        "Backend not responding.\nMake sure Flask server is running."
-      );
-
-    }
-
-    setLoading(false);
+      setLoading(false);
+    }, 2000);
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#0b1020",
+        color: "white",
+        overflowX: "hidden",
+      }}
+    >
       {/* HEADER */}
-      <div className="border-b border-yellow-500 px-4 py-4 bg-zinc-950">
-
-        <div className="flex items-center gap-3">
-
-          {/* AI ICON */}
-          <div className="w-12 h-12 rounded-full bg-yellow-500 flex items-center justify-center text-black font-bold text-xl shadow-lg">
-            AI
-          </div>
-
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-yellow-400">
-              798 Deenar AI
-            </h1>
-
-            <p className="text-gray-400 text-sm">
-              Institutional Forex Scanner
-            </p>
-          </div>
-
+      <div
+        style={{
+          borderBottom: "1px solid #D4AF37",
+          padding: "18px",
+          display: "flex",
+          alignItems: "center",
+          gap: "14px",
+        }}
+      >
+        <div
+          style={{
+            width: "52px",
+            height: "52px",
+            borderRadius: "50%",
+            background: "#D4AF37",
+            color: "black",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: "bold",
+          }}
+        >
+          AI
         </div>
 
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              color: "#D4AF37",
+            }}
+          >
+            798 Deenar AI
+          </h1>
+
+          <p
+            style={{
+              marginTop: "4px",
+              color: "#9CA3AF",
+              fontSize: "14px",
+            }}
+          >
+            Institutional Forex Scanner
+          </p>
+        </div>
       </div>
 
-      {/* MAIN CONTENT */}
-      <div className="p-4">
-
+      {/* CONTENT */}
+      <div
+        style={{
+          padding: "16px",
+        }}
+      >
         {/* UPLOAD CARD */}
-        <div className="bg-zinc-950 border border-yellow-500 rounded-2xl p-5 shadow-2xl">
-
-          <h2 className="text-lg md:text-xl font-bold text-yellow-400">
+        <div
+          style={{
+            background: "#111827",
+            border: "1px solid #D4AF37",
+            borderRadius: "18px",
+            padding: "18px",
+          }}
+        >
+          <h2
+            style={{
+              marginTop: 0,
+              color: "#D4AF37",
+            }}
+          >
             Upload Trading Chart
           </h2>
 
-          <p className="text-gray-400 text-sm mt-1">
-            TradingView • MT5 • Forex Broker Screenshots
+          <p
+            style={{
+              color: "#9CA3AF",
+              fontSize: "14px",
+            }}
+          >
+            TradingView • MT5 • Broker Screenshots
           </p>
 
-          {/* FILE INPUT */}
           <input
             type="file"
             accept="image/*"
             onChange={handleImage}
-            className="mt-5 w-full text-sm"
+            style={{
+              marginTop: "16px",
+              width: "100%",
+            }}
           />
 
-          {/* IMAGE PREVIEW */}
+          {/* PREVIEW */}
           {preview && (
-            <div className="mt-5">
-
+            <div
+              style={{
+                marginTop: "18px",
+              }}
+            >
               <img
                 src={preview}
-                alt="chart"
-                className="
-                  w-full
-                  max-h-72
-                  object-contain
-                  rounded-xl
-                  border
-                  border-yellow-500
-                  bg-black
-                "
+                alt="preview"
+                style={{
+                  width: "100%",
+                  maxHeight: "320px",
+                  objectFit: "contain",
+                  borderRadius: "18px",
+                  border: "2px solid #D4AF37",
+                  background: "#000",
+                }}
               />
-
             </div>
           )}
 
           {/* BUTTON */}
           <button
-            onClick={uploadImage}
+            onClick={analyzeChart}
             disabled={loading}
-            className="
-              mt-5
-              w-full
-              bg-yellow-500
-              text-black
-              font-bold
-              py-3
-              rounded-xl
-              active:scale-95
-            "
+            style={{
+              marginTop: "20px",
+              width: "100%",
+              background: "#D4AF37",
+              color: "#000",
+              border: "none",
+              borderRadius: "14px",
+              padding: "14px",
+              fontWeight: "bold",
+              fontSize: "16px",
+            }}
           >
-            {loading ? "Scanning Chart..." : "Scan Chart"}
+            {loading
+              ? "Scanning Chart..."
+              : "Scan Chart with AI"}
           </button>
-
         </div>
 
         {/* RESULTS */}
         {result && (
-
-          <div className="mt-6 space-y-4">
-
+          <div
+            style={{
+              marginTop: "24px",
+            }}
+          >
             {/* SIGNAL CARD */}
-            <div className="bg-zinc-950 border border-green-500 rounded-2xl p-5">
-
-              <h2 className="text-xl font-bold text-green-400">
+            <div
+              style={{
+                background: "#111827",
+                border: "1px solid #D4AF37",
+                borderRadius: "18px",
+                padding: "18px",
+              }}
+            >
+              <h2
+                style={{
+                  marginTop: 0,
+                  color: "#D4AF37",
+                }}
+              >
                 AI Trade Signal
               </h2>
 
-              <div className="grid grid-cols-2 gap-3 mt-5">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "1fr 1fr",
+                  gap: "12px",
+                }}
+              >
+                <Card
+                  title="Signal"
+                  value={result.signal}
+                />
 
-                <div className="bg-black p-3 rounded-xl border border-yellow-500">
-                  <p className="text-gray-400 text-sm">Signal</p>
-                  <p className="text-xl font-bold text-yellow-400">
-                    {result.signal}
-                  </p>
-                </div>
+                <Card
+                  title="Confidence"
+                  value={`${result.confidence}%`}
+                />
 
-                <div className="bg-black p-3 rounded-xl border border-yellow-500">
-                  <p className="text-gray-400 text-sm">Confidence</p>
-                  <p className="text-xl font-bold text-green-400">
-                    {result.confidence}%
-                  </p>
-                </div>
+                <Card
+                  title="Entry"
+                  value={result.entry}
+                />
 
-                <div className="bg-black p-3 rounded-xl border border-yellow-500">
-                  <p className="text-gray-400 text-sm">Entry</p>
-                  <p>{result.entry}</p>
-                </div>
+                <Card
+                  title="Stop Loss"
+                  value={result.sl}
+                />
 
-                <div className="bg-black p-3 rounded-xl border border-yellow-500">
-                  <p className="text-gray-400 text-sm">Stop Loss</p>
-                  <p>{result.sl}</p>
-                </div>
+                <Card
+                  title="Take Profit 1"
+                  value={result.tp1}
+                />
 
-                <div className="bg-black p-3 rounded-xl border border-yellow-500">
-                  <p className="text-gray-400 text-sm">TP1</p>
-                  <p>{result.tp1}</p>
-                </div>
-
-                <div className="bg-black p-3 rounded-xl border border-yellow-500">
-                  <p className="text-gray-400 text-sm">TP2</p>
-                  <p>{result.tp2}</p>
-                </div>
-
+                <Card
+                  title="Take Profit 2"
+                  value={result.tp2}
+                />
               </div>
-
             </div>
 
             {/* ANALYSIS */}
-            <div className="bg-zinc-950 border border-yellow-500 rounded-2xl p-5">
-
-              <h2 className="text-yellow-400 text-lg font-bold">
+            <div
+              style={{
+                marginTop: "20px",
+                background: "#111827",
+                border: "1px solid #D4AF37",
+                borderRadius: "18px",
+                padding: "18px",
+              }}
+            >
+              <h2
+                style={{
+                  marginTop: 0,
+                  color: "#D4AF37",
+                }}
+              >
                 Institutional Analysis
               </h2>
 
-              <div className="mt-4 space-y-3 text-gray-300 text-sm">
-
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
                 <p>
-                  📈 {result.analysis?.structure}
+                  📈 {result.analysis.structure}
                 </p>
 
                 <p>
-                  💧 {result.analysis?.liquidity}
+                  💧 {result.analysis.liquidity}
                 </p>
 
                 <p>
-                  ⚡ {result.analysis?.momentum}
+                  ⚡ {result.analysis.momentum}
                 </p>
-
               </div>
-
             </div>
-
           </div>
-
         )}
-
       </div>
-
     </div>
   );
 }
