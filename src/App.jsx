@@ -6,7 +6,7 @@ import {
   ATR,
 } from "technicalindicators";
 
-import * as Jimp from "jimp";
+import { Image } from "image-js";
 
 function Card({ title, value }) {
   return (
@@ -116,7 +116,7 @@ export default function App() {
   // IMAGE AI
   const analyzeImageAI = async () => {
 
-    if (!preview) {
+    if (!image) {
       return {
         bias: "NEUTRAL",
         confidenceBoost: 0,
@@ -125,66 +125,56 @@ export default function App() {
 
     try {
 
-      const image =
-        await Jimp.Jimp.read(preview);
+      const buffer =
+        await image.arrayBuffer();
 
-      let bullishPixels = 0;
-      let bearishPixels = 0;
+      const img =
+        await Image.load(buffer);
 
-      image.scan(
-        0,
-        0,
-        image.bitmap.width,
-        image.bitmap.height,
+      const data =
+        img.data;
 
-        function (
-          x,
-          y,
-          idx
-        ) {
+      let bullish = 0;
+      let bearish = 0;
 
-          const r =
-            this.bitmap.data[idx];
-
-          const g =
-            this.bitmap.data[idx + 1];
-
-          const b =
-            this.bitmap.data[idx + 2];
-
-          if (
-            g > r + 30 &&
-            g > b + 20
-          ) {
-            bullishPixels++;
-          }
-
-          if (
-            r > g + 30 &&
-            r > b + 20
-          ) {
-            bearishPixels++;
-          }
-        }
-      );
-
-      if (
-        bullishPixels >
-        bearishPixels
+      for (
+        let i = 0;
+        i < data.length;
+        i += 4
       ) {
+
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // GREEN
+        if (
+          g > r + 25 &&
+          g > b + 20
+        ) {
+          bullish++;
+        }
+
+        // RED
+        if (
+          r > g + 25 &&
+          r > b + 20
+        ) {
+          bearish++;
+        }
+      }
+
+      if (bullish > bearish) {
         return {
           bias: "BUY",
-          confidenceBoost: 8,
+          confidenceBoost: 10,
         };
       }
 
-      if (
-        bearishPixels >
-        bullishPixels
-      ) {
+      if (bearish > bullish) {
         return {
           bias: "SELL",
-          confidenceBoost: 8,
+          confidenceBoost: 10,
         };
       }
 
@@ -194,6 +184,8 @@ export default function App() {
       };
 
     } catch (err) {
+
+      console.log(err);
 
       return {
         bias: "NEUTRAL",
@@ -237,11 +229,6 @@ export default function App() {
       const lows =
         candles.map((c) =>
           parseFloat(c.low)
-        );
-
-      const opens =
-        candles.map((c) =>
-          parseFloat(c.open)
         );
 
       const currentPrice =
@@ -299,45 +286,6 @@ export default function App() {
           ? "BULLISH"
           : "BEARISH";
 
-      // STRUCTURE
-      const recentHigh =
-        Math.max(
-          ...highs.slice(-15)
-        );
-
-      const recentLow =
-        Math.min(
-          ...lows.slice(-15)
-        );
-
-      // BOS
-      let bos = "NONE";
-
-      if (
-        currentPrice >
-        recentHigh * 0.998
-      ) {
-        bos = "BULLISH BOS";
-      }
-
-      if (
-        currentPrice <
-        recentLow * 1.002
-      ) {
-        bos = "BEARISH BOS";
-      }
-
-      // MOMENTUM
-      let momentum = 50;
-
-      if (rsi > 60) {
-        momentum = 85;
-      }
-
-      if (rsi < 40) {
-        momentum = 85;
-      }
-
       // SIGNAL
       let signal;
 
@@ -361,14 +309,14 @@ export default function App() {
 
       if (
         imageAI.bias !==
-          "NEUTRAL"
+        "NEUTRAL"
       ) {
         signal =
           imageAI.bias;
       }
 
       // CONFIDENCE
-      let confidence = 70;
+      let confidence = 72;
 
       confidence +=
         imageAI.confidenceBoost;
@@ -383,15 +331,10 @@ export default function App() {
       }
 
       if (
-        momentum > 80
+        rsi > 60 ||
+        rsi < 40
       ) {
-        confidence += 8;
-      }
-
-      if (
-        bos !== "NONE"
-      ) {
-        confidence += 6;
+        confidence += 7;
       }
 
       if (
@@ -406,9 +349,7 @@ export default function App() {
       let tp2;
       let tp3;
 
-      if (
-        signal === "BUY"
-      ) {
+      if (signal === "BUY") {
 
         sl =
           (
@@ -466,7 +407,7 @@ export default function App() {
           ? "HIGH"
           : "MODERATE";
 
-      // MARKET STRUCTURE TEXT
+      // STRUCTURE
       const structure =
         trend === "BULLISH"
           ? "Higher highs and higher lows detected."
@@ -475,12 +416,12 @@ export default function App() {
       // LIQUIDITY
       const liquidity =
         signal === "BUY"
-          ? "Buy-side liquidity resting above recent highs."
-          : "Sell-side liquidity resting below recent lows.";
+          ? "Buy-side liquidity resting above highs."
+          : "Sell-side liquidity resting below lows.";
 
       // NARRATIVE
       const narrative =
-        `${pair} on ${timeframe} timeframe shows ${signal} probability. Market structure remains ${trend}. ${bos} detected with ${volatility} volatility conditions.`;
+        `${pair} ${timeframe} ${tradeType} setup shows ${signal} pressure using market structure, RSI, EMA trend engine, ATR volatility, and image-based chart AI.`;
 
       setResult({
         signal,
@@ -493,10 +434,8 @@ export default function App() {
         tp3,
         volatility,
         trend,
-        bos,
         rsi:
           rsi.toFixed(2),
-        momentum,
         structure,
         liquidity,
         narrative,
@@ -524,7 +463,6 @@ export default function App() {
         paddingBottom: "40px",
       }}
     >
-      {/* HEADER */}
       <div
         style={{
           padding: "18px",
@@ -700,7 +638,6 @@ export default function App() {
               marginTop: "24px",
             }}
           >
-            {/* SIGNAL */}
             <div
               style={{
                 background: "#111827",
@@ -718,17 +655,7 @@ export default function App() {
                 Trade Intelligence
               </h2>
 
-              <h1>
-                {pair}
-              </h1>
-
-              <h2>
-                {timeframe}
-              </h2>
-
-              <h1>
-                {result.signal}
-              </h1>
+              <h1>{result.signal}</h1>
 
               <h2>
                 Confidence:
@@ -736,133 +663,24 @@ export default function App() {
                 {result.confidence}%
               </h2>
 
+              <p>{result.narrative}</p>
+
               <p>
-                {result.narrative}
+                Trend:
+                {" "}
+                {result.trend}
               </p>
-            </div>
-
-            {/* EXECUTION */}
-            <div
-              style={{
-                marginTop: "20px",
-                background: "#111827",
-                border:
-                  "1px solid #D4AF37",
-                borderRadius: "18px",
-                padding: "18px",
-              }}
-            >
-              <h2
-                style={{
-                  color: "#D4AF37",
-                }}
-              >
-                Execution Plan
-              </h2>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "1fr 1fr",
-                  gap: "12px",
-                }}
-              >
-                <Card
-                  title="Entry"
-                  value={
-                    result.currentPrice
-                  }
-                />
-
-                <Card
-                  title="Stop Loss"
-                  value={result.sl}
-                />
-
-                <Card
-                  title="TP1"
-                  value={result.tp1}
-                />
-
-                <Card
-                  title="TP2"
-                  value={result.tp2}
-                />
-
-                <Card
-                  title="TP3"
-                  value={result.tp3}
-                />
-
-                <Card
-                  title="RSI"
-                  value={result.rsi}
-                />
-
-                <Card
-                  title="Momentum"
-                  value={result.momentum}
-                />
-
-                <Card
-                  title="Volatility"
-                  value={
-                    result.volatility
-                  }
-                />
-              </div>
-            </div>
-
-            {/* SMC */}
-            <div
-              style={{
-                marginTop: "20px",
-                background: "#111827",
-                border:
-                  "1px solid #D4AF37",
-                borderRadius: "18px",
-                padding: "18px",
-              }}
-            >
-              <h2
-                style={{
-                  color: "#D4AF37",
-                }}
-              >
-                Smart Money Concepts
-              </h2>
 
               <p>
-                <strong>
-                  Market Structure:
-                </strong>
+                Structure:
                 {" "}
                 {result.structure}
               </p>
 
               <p>
-                <strong>
-                  BOS:
-                </strong>
-                {" "}
-                {result.bos}
-              </p>
-
-              <p>
-                <strong>
-                  Liquidity:
-                </strong>
+                Liquidity:
                 {" "}
                 {result.liquidity}
-              </p>
-
-              <p>
-                <strong>
-                  Trend:
-                </strong>
-                {" "}
-                {result.trend}
               </p>
             </div>
           </div>
