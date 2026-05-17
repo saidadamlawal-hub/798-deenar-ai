@@ -41,7 +41,7 @@ export default function App() {
   const apiKey =
     import.meta.env.VITE_TWELVE_API_KEY;
 
-  // FETCH MARKET
+  // FETCH DATA
   useEffect(() => {
 
     const fetchMarket = async () => {
@@ -49,7 +49,7 @@ export default function App() {
       try {
 
         const res = await fetch(
-          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${timeframe}&outputsize=200&apikey=${apiKey}`
+          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${timeframe}&outputsize=300&apikey=${apiKey}`
         );
 
         const data = await res.json();
@@ -66,7 +66,7 @@ export default function App() {
 
   }, [pair, timeframe]);
 
-  // HANDLE IMAGE
+  // IMAGE
   const handleImage = async (e) => {
 
     const file = e.target.files[0];
@@ -81,7 +81,7 @@ export default function App() {
 
       setPreview(reader.result);
 
-      // OCR START
+      // OCR
       try {
 
         const result =
@@ -96,7 +96,7 @@ export default function App() {
 
         setOcrText(text);
 
-        // AUTO PAIR DETECT
+        // PAIR DETECTION
         if (
           text.includes("XAUUSD") ||
           text.includes("GOLD")
@@ -122,34 +122,24 @@ export default function App() {
           setPair("BTC/USD");
         }
 
-        // TIMEFRAME DETECT
-        if (
-          text.includes("M5")
-        ) {
+        // TIMEFRAME
+        if (text.includes("M5")) {
           setTimeframe("5min");
         }
 
-        if (
-          text.includes("M15")
-        ) {
+        if (text.includes("M15")) {
           setTimeframe("15min");
         }
 
-        if (
-          text.includes("M30")
-        ) {
+        if (text.includes("M30")) {
           setTimeframe("30min");
         }
 
-        if (
-          text.includes("H1")
-        ) {
+        if (text.includes("H1")) {
           setTimeframe("1h");
         }
 
-        if (
-          text.includes("H4")
-        ) {
+        if (text.includes("H4")) {
           setTimeframe("4h");
         }
 
@@ -174,8 +164,6 @@ export default function App() {
 
     setLoading(true);
 
-    setResult(null);
-
     try {
 
       const candles =
@@ -199,13 +187,6 @@ export default function App() {
       const currentPrice =
         closes[closes.length - 1];
 
-      // RSI
-      const rsi =
-        RSI.calculate({
-          values: closes,
-          period: 14,
-        }).slice(-1)[0];
-
       // EMA
       const ema20 =
         EMA.calculate({
@@ -217,6 +198,19 @@ export default function App() {
         EMA.calculate({
           values: closes,
           period: 50,
+        }).slice(-1)[0];
+
+      const ema200 =
+        EMA.calculate({
+          values: closes,
+          period: 200,
+        }).slice(-1)[0];
+
+      // RSI
+      const rsi =
+        RSI.calculate({
+          values: closes,
+          period: 14,
         }).slice(-1)[0];
 
       // ATR
@@ -242,58 +236,138 @@ export default function App() {
       const latestMACD =
         macd[macd.length - 1];
 
-      // TREND
-      const trend =
-        ema20 > ema50
-          ? "BULLISH"
-          : "BEARISH";
-
-      // SIGNAL
-      let signal =
-        trend === "BULLISH"
-          ? "BUY"
-          : "SELL";
-
-      // CONFIDENCE
-      let confidence = 68;
+      // TREND ENGINE
+      let trend = "RANGING";
 
       if (
-        Math.abs(
-          ema20 - ema50
-        ) > atr * 0.3
+        ema20 > ema50 &&
+        ema50 > ema200
+      ) {
+        trend = "BULLISH";
+      }
+
+      if (
+        ema20 < ema50 &&
+        ema50 < ema200
+      ) {
+        trend = "BEARISH";
+      }
+
+      // SIGNAL ENGINE
+      let signal = "HOLD";
+
+      if (
+        trend === "BULLISH" &&
+        rsi > 55 &&
+        latestMACD.histogram > 0
+      ) {
+        signal = "BUY";
+      }
+
+      if (
+        trend === "BEARISH" &&
+        rsi < 45 &&
+        latestMACD.histogram < 0
+      ) {
+        signal = "SELL";
+      }
+
+      // CONFIDENCE
+      let confidence = 50;
+
+      if (trend !== "RANGING") {
+        confidence += 15;
+      }
+
+      if (
+        Math.abs(ema20 - ema50)
+        > atr * 0.3
       ) {
         confidence += 10;
       }
 
       if (
-        latestMACD.histogram > 0
+        latestMACD.histogram > 0 &&
+        signal === "BUY"
       ) {
-        confidence += 8;
+        confidence += 10;
+      }
+
+      if (
+        latestMACD.histogram < 0 &&
+        signal === "SELL"
+      ) {
+        confidence += 10;
       }
 
       if (
         rsi > 60 ||
         rsi < 40
       ) {
-        confidence += 7;
+        confidence += 8;
+      }
+
+      // TRADE TYPE ENGINE
+      let duration = "4-12 Hours";
+
+      if (
+        tradeType === "Scalping"
+      ) {
+        duration = "15-45 Minutes";
       }
 
       if (
-        confidence > 95
+        tradeType === "Swing"
       ) {
-        confidence = 95;
+        duration = "2-5 Days";
       }
 
-      // BOS / CHOCH
+      if (
+        tradeType === "Position"
+      ) {
+        duration = "1-3 Weeks";
+      }
+
+      // VOLATILITY
+      let volatility =
+        "MODERATE";
+
+      if (
+        atr >
+        currentPrice * 0.003
+      ) {
+        volatility = "HIGH";
+      }
+
+      // STRUCTURE
+      const structure =
+        trend === "BULLISH"
+          ? "Bullish market structure with higher highs and higher lows."
+          : trend === "BEARISH"
+          ? "Bearish market structure with lower highs and lower lows."
+          : "Market currently ranging with weak directional structure.";
+
+      // BOS
       const bos =
         trend === "BULLISH"
-          ? "Bullish BOS confirmed above recent highs."
-          : "Bearish BOS confirmed below recent lows.";
+          ? "Bullish BOS confirmed above recent swing highs."
+          : trend === "BEARISH"
+          ? "Bearish BOS confirmed below recent swing lows."
+          : "No valid BOS detected.";
 
+      // CHOCH
       const choch =
         trend === "BULLISH"
-          ? "Bullish continuation structure."
-          : "Bearish continuation structure.";
+          ? "Bullish continuation structure active."
+          : trend === "BEARISH"
+          ? "Bearish continuation structure active."
+          : "CHOCH not confirmed.";
+
+      // LIQUIDITY
+      const liquidity =
+        trend === "BUY"
+          ? "Buy-side liquidity resting above recent highs."
+          : "Sell-side liquidity resting below recent lows.";
 
       // SUPPORT / RESISTANCE
       const resistance =
@@ -363,32 +437,35 @@ export default function App() {
           ).toFixed(3);
       }
 
-      // ANALYST NARRATIVE
+      // NARRATIVE
       const narrative =
-        `${pair} ${timeframe} ${tradeType} setup shows strong ${signal} pressure. OCR market recognition, EMA trend alignment, RSI momentum, ATR volatility profile, MACD confirmation, and BOS structure engine all align toward ${signal}.`;
+        `${pair} ${timeframe} ${tradeType} setup shows ${trend.toLowerCase()} conditions. EMA alignment, RSI momentum, MACD confirmation, volatility profile, liquidity positioning, BOS/CHOCH structure, and trend continuation models all support a ${signal} bias.`;
 
       setResult({
         signal,
-        confidence,
+        confidence:
+          Math.min(
+            confidence,
+            95
+          ),
         currentPrice:
           currentPrice.toFixed(3),
         trend,
-        volatility:
-          atr >
-          currentPrice * 0.003
-            ? "HIGH"
-            : "MODERATE",
+        volatility,
         rsi:
           rsi.toFixed(2),
         support,
         resistance,
         bos,
         choch,
+        liquidity,
+        structure,
         sl,
         tp1,
         tp2,
         tp3,
         narrative,
+        duration,
       });
 
     } catch (err) {
@@ -434,7 +511,7 @@ export default function App() {
             color: "#aaa",
           }}
         >
-          Institutional AI Scanner
+          Institutional Market Scanner
         </p>
       </div>
 
@@ -601,17 +678,9 @@ export default function App() {
               OCR Detection
             </h2>
 
-            <p>
-              Pair:
-              {" "}
-              {pair}
-            </p>
+            <p>Pair: {pair}</p>
 
-            <p>
-              Timeframe:
-              {" "}
-              {timeframe}
-            </p>
+            <p>Timeframe: {timeframe}</p>
           </div>
         )}
 
@@ -653,10 +722,18 @@ export default function App() {
                 {result.narrative}
               </p>
 
+              <hr />
+
               <p>
                 Current Price:
                 {" "}
                 {result.currentPrice}
+              </p>
+
+              <p>
+                Trend:
+                {" "}
+                {result.trend}
               </p>
 
               <p>
@@ -666,10 +743,18 @@ export default function App() {
               </p>
 
               <p>
-                Trend:
+                Volatility:
                 {" "}
-                {result.trend}
+                {result.volatility}
               </p>
+
+              <p>
+                Duration:
+                {" "}
+                {result.duration}
+              </p>
+
+              <hr />
 
               <p>
                 Support:
@@ -681,18 +766,6 @@ export default function App() {
                 Resistance:
                 {" "}
                 {result.resistance}
-              </p>
-
-              <p>
-                BOS:
-                {" "}
-                {result.bos}
-              </p>
-
-              <p>
-                CHOCH:
-                {" "}
-                {result.choch}
               </p>
 
               <p>
@@ -717,6 +790,32 @@ export default function App() {
                 TP3:
                 {" "}
                 {result.tp3}
+              </p>
+
+              <hr />
+
+              <p>
+                Structure:
+                {" "}
+                {result.structure}
+              </p>
+
+              <p>
+                BOS:
+                {" "}
+                {result.bos}
+              </p>
+
+              <p>
+                CHOCH:
+                {" "}
+                {result.choch}
+              </p>
+
+              <p>
+                Liquidity:
+                {" "}
+                {result.liquidity}
               </p>
             </div>
           </div>
