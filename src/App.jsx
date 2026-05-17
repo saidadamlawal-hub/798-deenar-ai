@@ -78,7 +78,7 @@ export default function App() {
       try {
 
         const res = await fetch(
-          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${timeframe}&outputsize=120&apikey=${apiKey}`
+          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${timeframe}&outputsize=150&apikey=${apiKey}`
         );
 
         const data = await res.json();
@@ -95,7 +95,7 @@ export default function App() {
 
   }, [pair, timeframe]);
 
-  // IMAGE
+  // HANDLE IMAGE
   const handleImage = (e) => {
 
     const file = e.target.files[0];
@@ -147,16 +147,11 @@ export default function App() {
             this.bitmap.data[idx];
 
           const g =
-            this.bitmap.data[
-              idx + 1
-            ];
+            this.bitmap.data[idx + 1];
 
           const b =
-            this.bitmap.data[
-              idx + 2
-            ];
+            this.bitmap.data[idx + 2];
 
-          // GREEN
           if (
             g > r + 30 &&
             g > b + 20
@@ -164,7 +159,6 @@ export default function App() {
             bullishPixels++;
           }
 
-          // RED
           if (
             r > g + 30 &&
             r > b + 20
@@ -201,8 +195,6 @@ export default function App() {
 
     } catch (err) {
 
-      console.log(err);
-
       return {
         bias: "NEUTRAL",
         confidenceBoost: 0,
@@ -229,26 +221,31 @@ export default function App() {
 
     try {
 
+      const candles =
+        marketData.values.reverse();
+
       const closes =
-        marketData.values
-          .map((c) =>
-            parseFloat(c.close)
-          )
-          .reverse();
+        candles.map((c) =>
+          parseFloat(c.close)
+        );
 
       const highs =
-        marketData.values
-          .map((c) =>
-            parseFloat(c.high)
-          )
-          .reverse();
+        candles.map((c) =>
+          parseFloat(c.high)
+        );
 
       const lows =
-        marketData.values
-          .map((c) =>
-            parseFloat(c.low)
-          )
-          .reverse();
+        candles.map((c) =>
+          parseFloat(c.low)
+        );
+
+      const opens =
+        candles.map((c) =>
+          parseFloat(c.open)
+        );
+
+      const currentPrice =
+        closes[closes.length - 1];
 
       // RSI
       const rsiValues =
@@ -295,21 +292,62 @@ export default function App() {
           atrValues.length - 1
         ];
 
-      const currentPrice =
-        closes[closes.length - 1];
+      // TREND
+      const trend =
+        currentEMA20 >
+        currentEMA50
+          ? "BULLISH"
+          : "BEARISH";
 
-      // SIGNAL ENGINE
+      // STRUCTURE
+      const recentHigh =
+        Math.max(
+          ...highs.slice(-15)
+        );
+
+      const recentLow =
+        Math.min(
+          ...lows.slice(-15)
+        );
+
+      // BOS
+      let bos = "NONE";
+
+      if (
+        currentPrice >
+        recentHigh * 0.998
+      ) {
+        bos = "BULLISH BOS";
+      }
+
+      if (
+        currentPrice <
+        recentLow * 1.002
+      ) {
+        bos = "BEARISH BOS";
+      }
+
+      // MOMENTUM
+      let momentum = 50;
+
+      if (rsi > 60) {
+        momentum = 85;
+      }
+
+      if (rsi < 40) {
+        momentum = 85;
+      }
+
+      // SIGNAL
       let signal;
 
       if (
-        currentEMA20 >
-          currentEMA50 &&
+        trend === "BULLISH" &&
         rsi < 70
       ) {
         signal = "BUY";
       } else if (
-        currentEMA20 <
-          currentEMA50 &&
+        trend === "BEARISH" &&
         rsi > 30
       ) {
         signal = "SELL";
@@ -323,8 +361,7 @@ export default function App() {
 
       if (
         imageAI.bias !==
-          "NEUTRAL" &&
-        imageAI.bias !== signal
+          "NEUTRAL"
       ) {
         signal =
           imageAI.bias;
@@ -340,19 +377,26 @@ export default function App() {
         Math.abs(
           currentEMA20 -
             currentEMA50
-        ) > atr * 0.3
+        ) > atr * 0.5
       ) {
-        confidence += 10;
+        confidence += 8;
       }
 
       if (
-        rsi > 60 ||
-        rsi < 40
+        momentum > 80
       ) {
-        confidence += 10;
+        confidence += 8;
       }
 
-      if (confidence > 95) {
+      if (
+        bos !== "NONE"
+      ) {
+        confidence += 6;
+      }
+
+      if (
+        confidence > 95
+      ) {
         confidence = 95;
       }
 
@@ -362,7 +406,9 @@ export default function App() {
       let tp2;
       let tp3;
 
-      if (signal === "BUY") {
+      if (
+        signal === "BUY"
+      ) {
 
         sl =
           (
@@ -420,9 +466,21 @@ export default function App() {
           ? "HIGH"
           : "MODERATE";
 
+      // MARKET STRUCTURE TEXT
+      const structure =
+        trend === "BULLISH"
+          ? "Higher highs and higher lows detected."
+          : "Lower highs and lower lows detected.";
+
+      // LIQUIDITY
+      const liquidity =
+        signal === "BUY"
+          ? "Buy-side liquidity resting above recent highs."
+          : "Sell-side liquidity resting below recent lows.";
+
       // NARRATIVE
       const narrative =
-        `${pair} ${timeframe} ${tradeType} setup shows ${signal} probability using technical indicators and chart image AI recognition.`;
+        `${pair} on ${timeframe} timeframe shows ${signal} probability. Market structure remains ${trend}. ${bos} detected with ${volatility} volatility conditions.`;
 
       setResult({
         signal,
@@ -434,18 +492,14 @@ export default function App() {
         tp2,
         tp3,
         volatility,
+        trend,
+        bos,
         rsi:
           rsi.toFixed(2),
-        atr:
-          atr.toFixed(3),
-        emaBias:
-          currentEMA20 >
-          currentEMA50
-            ? "Bullish EMA Alignment"
-            : "Bearish EMA Alignment",
+        momentum,
+        structure,
+        liquidity,
         narrative,
-        imageBias:
-          imageAI.bias,
       });
 
     } catch (err) {
@@ -470,6 +524,7 @@ export default function App() {
         paddingBottom: "40px",
       }}
     >
+      {/* HEADER */}
       <div
         style={{
           padding: "18px",
@@ -645,6 +700,7 @@ export default function App() {
               marginTop: "24px",
             }}
           >
+            {/* SIGNAL */}
             <div
               style={{
                 background: "#111827",
@@ -659,7 +715,15 @@ export default function App() {
                   color: "#D4AF37",
                 }}
               >
-                AI Trade Signal
+                Trade Intelligence
+              </h2>
+
+              <h1>
+                {pair}
+              </h1>
+
+              <h2>
+                {timeframe}
               </h2>
 
               <h1>
@@ -675,11 +739,130 @@ export default function App() {
               <p>
                 {result.narrative}
               </p>
+            </div>
+
+            {/* EXECUTION */}
+            <div
+              style={{
+                marginTop: "20px",
+                background: "#111827",
+                border:
+                  "1px solid #D4AF37",
+                borderRadius: "18px",
+                padding: "18px",
+              }}
+            >
+              <h2
+                style={{
+                  color: "#D4AF37",
+                }}
+              >
+                Execution Plan
+              </h2>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "1fr 1fr",
+                  gap: "12px",
+                }}
+              >
+                <Card
+                  title="Entry"
+                  value={
+                    result.currentPrice
+                  }
+                />
+
+                <Card
+                  title="Stop Loss"
+                  value={result.sl}
+                />
+
+                <Card
+                  title="TP1"
+                  value={result.tp1}
+                />
+
+                <Card
+                  title="TP2"
+                  value={result.tp2}
+                />
+
+                <Card
+                  title="TP3"
+                  value={result.tp3}
+                />
+
+                <Card
+                  title="RSI"
+                  value={result.rsi}
+                />
+
+                <Card
+                  title="Momentum"
+                  value={result.momentum}
+                />
+
+                <Card
+                  title="Volatility"
+                  value={
+                    result.volatility
+                  }
+                />
+              </div>
+            </div>
+
+            {/* SMC */}
+            <div
+              style={{
+                marginTop: "20px",
+                background: "#111827",
+                border:
+                  "1px solid #D4AF37",
+                borderRadius: "18px",
+                padding: "18px",
+              }}
+            >
+              <h2
+                style={{
+                  color: "#D4AF37",
+                }}
+              >
+                Smart Money Concepts
+              </h2>
 
               <p>
-                Image AI Bias:
+                <strong>
+                  Market Structure:
+                </strong>
                 {" "}
-                {result.imageBias}
+                {result.structure}
+              </p>
+
+              <p>
+                <strong>
+                  BOS:
+                </strong>
+                {" "}
+                {result.bos}
+              </p>
+
+              <p>
+                <strong>
+                  Liquidity:
+                </strong>
+                {" "}
+                {result.liquidity}
+              </p>
+
+              <p>
+                <strong>
+                  Trend:
+                </strong>
+                {" "}
+                {result.trend}
               </p>
             </div>
           </div>
