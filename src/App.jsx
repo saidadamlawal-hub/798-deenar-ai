@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 
+import {
+  RSI,
+  EMA,
+  ATR,
+} from "technicalindicators";
+
 function Card({ title, value }) {
   return (
     <div
@@ -62,25 +68,23 @@ export default function App() {
   const apiKey =
     import.meta.env.VITE_TWELVE_API_KEY;
 
-  // LIVE MARKET DATA
+  // FETCH MARKET DATA
   useEffect(() => {
 
     const fetchMarket = async () => {
 
       try {
 
-        const symbolMap = {
-          "XAU/USD": "XAU/USD",
-          "EUR/USD": "EUR/USD",
-          "GBP/USD": "GBP/USD",
-          "BTC/USD": "BTC/USD",
+        const intervalMap = {
+          "5min": "5min",
+          "15min": "15min",
+          "30min": "30min",
+          "1h": "1h",
+          "4h": "4h",
         };
 
-        const symbol =
-          symbolMap[pair];
-
         const res = await fetch(
-          `https://api.twelvedata.com/price?symbol=${symbol}&apikey=${apiKey}`
+          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${intervalMap[timeframe]}&outputsize=120&apikey=${apiKey}`
         );
 
         const data = await res.json();
@@ -95,7 +99,7 @@ export default function App() {
 
     fetchMarket();
 
-  }, [pair]);
+  }, [pair, timeframe]);
 
   // IMAGE
   const handleImage = (e) => {
@@ -115,7 +119,7 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // AI ENGINE
+  // ANALYSIS ENGINE
   const analyzeChart = async () => {
 
     if (!image) {
@@ -123,7 +127,7 @@ export default function App() {
       return;
     }
 
-    if (!marketData?.price) {
+    if (!marketData?.values) {
       alert("Market data not loaded");
       return;
     }
@@ -132,41 +136,131 @@ export default function App() {
 
     setResult(null);
 
-    setTimeout(() => {
+    try {
 
-      const currentPrice =
-        parseFloat(marketData.price);
+      // CLOSE PRICES
+      const closes =
+        marketData.values
+          .map((c) =>
+            parseFloat(c.close)
+          )
+          .reverse();
 
-      // SIGNAL ENGINE
-      const signal =
-        Math.random() > 0.5
-          ? "BUY"
-          : "SELL";
+      // HIGHS
+      const highs =
+        marketData.values
+          .map((c) =>
+            parseFloat(c.high)
+          )
+          .reverse();
 
-      // CONFIDENCE
-      const confidence =
-        Math.floor(Math.random() * 18) + 80;
+      // LOWS
+      const lows =
+        marketData.values
+          .map((c) =>
+            parseFloat(c.low)
+          )
+          .reverse();
 
-      // VOLATILITY
-      const volatility =
-        Math.random() > 0.5
-          ? "HIGH"
-          : "MODERATE";
+      // RSI
+      const rsiValues =
+        RSI.calculate({
+          values: closes,
+          period: 14,
+        });
+
+      const rsi =
+        rsiValues[
+          rsiValues.length - 1
+        ];
+
+      // EMA
+      const ema20 =
+        EMA.calculate({
+          values: closes,
+          period: 20,
+        });
+
+      const ema50 =
+        EMA.calculate({
+          values: closes,
+          period: 50,
+        });
+
+      const currentEMA20 =
+        ema20[ema20.length - 1];
+
+      const currentEMA50 =
+        ema50[ema50.length - 1];
 
       // ATR
-      let atr;
+      const atrValues =
+        ATR.calculate({
+          high: highs,
+          low: lows,
+          close: closes,
+          period: 14,
+        });
 
-      if (pair.includes("XAU")) {
-        atr = 28;
-      } else if (
-        pair.includes("BTC")
+      const atr =
+        atrValues[
+          atrValues.length - 1
+        ];
+
+      // CURRENT PRICE
+      const currentPrice =
+        closes[closes.length - 1];
+
+      // SIGNAL ENGINE
+      let signal;
+
+      if (
+        currentEMA20 >
+          currentEMA50 &&
+        rsi < 70
       ) {
-        atr = 1200;
+        signal = "BUY";
+      } else if (
+        currentEMA20 <
+          currentEMA50 &&
+        rsi > 30
+      ) {
+        signal = "SELL";
       } else {
-        atr = 0.012;
+        signal = "HOLD";
       }
 
-      // PRICE ENGINE
+      // CONFIDENCE
+      let confidence = 70;
+
+      if (
+        Math.abs(
+          currentEMA20 -
+            currentEMA50
+        ) > atr * 0.3
+      ) {
+        confidence += 10;
+      }
+
+      if (
+        rsi > 60 ||
+        rsi < 40
+      ) {
+        confidence += 10;
+      }
+
+      if (
+        atr >
+        currentPrice * 0.002
+      ) {
+        confidence += 5;
+      }
+
+      if (confidence > 95) {
+        confidence = 95;
+      }
+
+      // TP / SL
       let sl;
       let tp1;
       let tp2;
@@ -181,17 +275,20 @@ export default function App() {
 
         tp1 =
           (
-            currentPrice + atr
+            currentPrice +
+            atr * 1.5
           ).toFixed(3);
 
         tp2 =
           (
-            currentPrice + atr * 2
+            currentPrice +
+            atr * 2.5
           ).toFixed(3);
 
         tp3 =
           (
-            currentPrice + atr * 3
+            currentPrice +
+            atr * 4
           ).toFixed(3);
 
       } else {
@@ -203,58 +300,69 @@ export default function App() {
 
         tp1 =
           (
-            currentPrice - atr
+            currentPrice -
+            atr * 1.5
           ).toFixed(3);
 
         tp2 =
           (
-            currentPrice - atr * 2
+            currentPrice -
+            atr * 2.5
           ).toFixed(3);
 
         tp3 =
           (
-            currentPrice - atr * 3
+            currentPrice -
+            atr * 4
           ).toFixed(3);
       }
 
-      // RSI
-      const rsi =
-        signal === "BUY"
-          ? Math.floor(Math.random() * 20) + 35
-          : Math.floor(Math.random() * 20) + 60;
+      // VOLATILITY
+      let volatility;
 
-      // EMA
+      if (
+        atr >
+        currentPrice * 0.003
+      ) {
+        volatility = "HIGH";
+      } else {
+        volatility = "MODERATE";
+      }
+
+      // EMA BIAS
       const emaBias =
-        signal === "BUY"
+        currentEMA20 >
+        currentEMA50
           ? "Bullish EMA Alignment"
           : "Bearish EMA Alignment";
 
-      // NARRATIVE
-      const narrative =
-        signal === "BUY"
-          ? `${pair} shows institutional bullish continuation with strong momentum and liquidity sweep confirmation.`
-          : `${pair} shows bearish continuation following liquidity grab and structural breakdown.`;
-
-      // SMC
+      // STRUCTURE
       const structure =
         signal === "BUY"
           ? "Bullish market structure with Higher Highs and Higher Lows."
           : "Bearish market structure with Lower Highs and Lower Lows.";
 
+      // LIQUIDITY
       const liquidity =
         signal === "BUY"
-          ? "Sell-side liquidity sweep detected before bullish expansion."
-          : "Buy-side liquidity taken before bearish continuation.";
+          ? "Sell-side liquidity sweep detected before bullish continuation."
+          : "Buy-side liquidity sweep detected before bearish continuation.";
 
+      // MOMENTUM
       const momentum =
         signal === "BUY"
-          ? "Bullish displacement candles confirm strong buying pressure."
-          : "Bearish displacement candles confirm aggressive selling pressure.";
+          ? "Bullish momentum supported by EMA trend and RSI strength."
+          : "Bearish momentum supported by EMA weakness and RSI pressure.";
+
+      // NARRATIVE
+      const narrative =
+        `${pair} ${timeframe} ${tradeType} setup shows ${signal} conditions based on EMA alignment, RSI behavior, ATR volatility profile, and trend continuation probability.`;
 
       setResult({
         signal,
         confidence,
-        currentPrice,
+        currentPrice:
+          currentPrice.toFixed(3),
         volatility,
         tradeType,
         sl,
@@ -266,12 +374,20 @@ export default function App() {
         liquidity,
         momentum,
         emaBias,
-        rsi,
+        rsi: rsi.toFixed(2),
+        atr: atr.toFixed(3),
       });
 
-      setLoading(false);
+    } catch (err) {
 
-    }, 2500);
+      console.log(err);
+
+      alert(
+        "Analysis engine failed"
+      );
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -307,7 +423,7 @@ export default function App() {
             color: "#9CA3AF",
           }}
         >
-          Institutional Market Scanner
+          Institutional AI Market Scanner
         </p>
       </div>
 
@@ -336,7 +452,6 @@ export default function App() {
             Market Settings
           </h2>
 
-          {/* PAIR */}
           <select
             value={pair}
             onChange={(e) =>
@@ -357,7 +472,6 @@ export default function App() {
             <option>BTC/USD</option>
           </select>
 
-          {/* TIMEFRAME */}
           <select
             value={timeframe}
             onChange={(e) =>
@@ -381,7 +495,6 @@ export default function App() {
             <option>4h</option>
           </select>
 
-          {/* TRADE TYPE */}
           <select
             value={tradeType}
             onChange={(e) =>
@@ -420,25 +533,29 @@ export default function App() {
               color: "#D4AF37",
             }}
           >
-            Live Market
+            Live Market Data
           </h2>
 
-          {marketData?.price ? (
+          {marketData?.values ? (
             <>
+              <p>Pair: {pair}</p>
               <p>
-                Pair: {pair}
+                Current Price:
+                {" "}
+                {
+                  marketData.values[0]
+                    ?.close
+                }
               </p>
-
               <p>
-                Price: {marketData.price}
+                Timeframe:
+                {" "}
+                {timeframe}
               </p>
-
               <p>
-                Timeframe: {timeframe}
-              </p>
-
-              <p>
-                Trade Type: {tradeType}
+                Trade Type:
+                {" "}
+                {tradeType}
               </p>
             </>
           ) : (
@@ -470,7 +587,6 @@ export default function App() {
             onChange={handleImage}
           />
 
-          {/* IMAGE */}
           {preview && (
             <img
               src={preview}
@@ -483,12 +599,10 @@ export default function App() {
                 borderRadius: "16px",
                 border:
                   "2px solid #D4AF37",
-                background: "#000",
               }}
             />
           )}
 
-          {/* BUTTON */}
           <button
             onClick={analyzeChart}
             disabled={loading}
@@ -501,11 +615,10 @@ export default function App() {
               padding: "14px",
               borderRadius: "14px",
               fontWeight: "bold",
-              fontSize: "16px",
             }}
           >
             {loading
-              ? "AI Scanning Market..."
+              ? "Running AI Analysis..."
               : "Analyze Chart"}
           </button>
         </div>
@@ -517,7 +630,7 @@ export default function App() {
               marginTop: "24px",
             }}
           >
-            {/* MAIN RESULT */}
+            {/* MAIN */}
             <div
               style={{
                 background: "#111827",
@@ -532,7 +645,7 @@ export default function App() {
                   color: "#D4AF37",
                 }}
               >
-                AI Trade Signal
+                AI Trade Intelligence
               </h2>
 
               <h1>
@@ -610,10 +723,8 @@ export default function App() {
                 />
 
                 <Card
-                  title="Volatility"
-                  value={
-                    result.volatility
-                  }
+                  title="ATR"
+                  value={result.atr}
                 />
 
                 <Card
