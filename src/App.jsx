@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Tesseract from "tesseract.js";
 
 const genAI = new GoogleGenerativeAI(
   import.meta.env.VITE_GEMINI_API_KEY
@@ -8,17 +9,26 @@ const genAI = new GoogleGenerativeAI(
 export default function App() {
 
   const [preview, setPreview] = useState(null);
+
   const [loading, setLoading] = useState(false);
 
+  const [ocrText, setOcrText] = useState("");
+
   const [pair, setPair] = useState("AUTO");
+
   const [timeframe, setTimeframe] = useState("AUTO");
-  const [tradeStyle, setTradeStyle] = useState("INTRADAY");
 
-  const [backtestMode, setBacktestMode] = useState(false);
+  const [tradeStyle, setTradeStyle] =
+    useState("INTRADAY");
 
-  const [useDeterministic, setUseDeterministic] = useState(false);
+  const [backtestMode, setBacktestMode] =
+    useState(false);
 
-  const [useLivePrice, setUseLivePrice] = useState(false);
+  const [useDeterministic, setUseDeterministic] =
+    useState(false);
+
+  const [useLivePrice, setUseLivePrice] =
+    useState(false);
 
   const [result, setResult] = useState(null);
 
@@ -30,51 +40,140 @@ export default function App() {
 
     const reader = new FileReader();
 
-    reader.onloadend = () => {
-      setPreview(reader.result);
+    reader.onloadend = async () => {
+
+      const imageData = reader.result;
+
+      setPreview(imageData);
+
+      runOCR(imageData);
     };
 
     reader.readAsDataURL(file);
   }
 
+  async function runOCR(image) {
+
+    try {
+
+      const {
+        data: { text },
+      } = await Tesseract.recognize(image, "eng");
+
+      setOcrText(text);
+
+      detectPair(text);
+
+      detectTimeframe(text);
+
+    } catch (err) {
+
+      console.log(err);
+    }
+  }
+
+  function detectPair(text) {
+
+    const upper = text.toUpperCase();
+
+    const pairs = [
+      "XAUUSD",
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "BTCUSD",
+      "ETHUSD",
+      "NAS100",
+      "US30",
+    ];
+
+    for (const p of pairs) {
+
+      if (upper.includes(p)) {
+
+        setPair(p);
+
+        return;
+      }
+    }
+  }
+
+  function detectTimeframe(text) {
+
+    const upper = text.toUpperCase();
+
+    const tfs = [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1",
+      "W1",
+    ];
+
+    for (const tf of tfs) {
+
+      if (upper.includes(tf)) {
+
+        setTimeframe(tf);
+
+        return;
+      }
+    }
+  }
+
   async function scanChart() {
 
     if (!preview) {
+
       alert("Upload chart image first");
+
       return;
     }
 
     setLoading(true);
+
     setResult(null);
 
     try {
 
-      const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
-      });
+      const model =
+        genAI.getGenerativeModel({
+          model: "gemini-1.5-flash",
+        });
 
       const prompt = `
 You are an elite institutional trading AI.
 
-Analyze this forex or gold trading chart professionally.
+Analyze this trading chart professionally.
 
-Rules:
-- Think like smart money / institutional trader
-- Use SMC concepts
-- Detect:
-  trend
-  momentum
-  liquidity
-  BOS
-  CHOCH
-  volatility
-  manipulation
-  premium/discount
+Use:
+- Smart Money Concepts
+- ICT concepts
+- market structure
+- BOS
+- CHOCH
+- liquidity
+- volatility
+- momentum
+- manipulation
+- premium/discount
 
-Settings:
-PAIR: ${pair}
-TIMEFRAME: ${timeframe}
-TRADE STYLE: ${tradeStyle}
+OCR DETECTED TEXT:
+${ocrText}
+
+SETTINGS:
+
+PAIR:
+${pair}
+
+TIMEFRAME:
+${timeframe}
+
+TRADE STYLE:
+${tradeStyle}
 
 BACKTEST MODE:
 ${backtestMode ? "ON" : "OFF"}
@@ -85,9 +184,13 @@ ${useDeterministic ? "ON" : "OFF"}
 LIVE PRICE ENGINE:
 ${useLivePrice ? "ON" : "OFF"}
 
-Return STRICT JSON only.
+IMPORTANT:
+- If OCR detected pair/timeframe correctly,
+use them.
+- Return STRICT JSON ONLY.
+- No markdown.
 
-Format:
+FORMAT:
 
 {
   "pair": "",
@@ -102,6 +205,7 @@ Format:
   "riskReward": "",
   "volatility": "",
   "setupQuality": "",
+  "duration": "",
   "analysis": {
     "trend": "",
     "structure": "",
@@ -131,17 +235,19 @@ Format:
 
       const imageData = preview.split(",")[1];
 
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            mimeType: "image/png",
-            data: imageData,
+      const aiResult =
+        await model.generateContent([
+          prompt,
+          {
+            inlineData: {
+              mimeType: "image/png",
+              data: imageData,
+            },
           },
-        },
-      ]);
+        ]);
 
-      const response = await result.response;
+      const response =
+        await aiResult.response;
 
       let text = response.text();
 
@@ -156,11 +262,43 @@ Format:
 
       console.log(err);
 
-      alert("AI analysis failed");
-
+      alert("AI scan failed");
     }
 
     setLoading(false);
+  }
+
+  function Card({ title, value }) {
+
+    return (
+      <div
+        style={{
+          background: "#050816",
+          border: "1px solid #D4AF37",
+          borderRadius: 16,
+          padding: 14,
+        }}
+      >
+        <div
+          style={{
+            color: "#888",
+            fontSize: 12,
+          }}
+        >
+          {title}
+        </div>
+
+        <div
+          style={{
+            marginTop: 8,
+            fontWeight: "bold",
+            fontSize: 18,
+          }}
+        >
+          {value}
+        </div>
+      </div>
+    );
   }
 
   function FactorBar({ label, value }) {
@@ -256,7 +394,9 @@ Format:
 
             <select
               value={pair}
-              onChange={(e) => setPair(e.target.value)}
+              onChange={(e) =>
+                setPair(e.target.value)
+              }
               style={selectStyle}
             >
               <option>AUTO</option>
@@ -268,7 +408,9 @@ Format:
 
             <select
               value={timeframe}
-              onChange={(e) => setTimeframe(e.target.value)}
+              onChange={(e) =>
+                setTimeframe(e.target.value)
+              }
               style={selectStyle}
             >
               <option>AUTO</option>
@@ -283,7 +425,9 @@ Format:
 
             <select
               value={tradeStyle}
-              onChange={(e) => setTradeStyle(e.target.value)}
+              onChange={(e) =>
+                setTradeStyle(e.target.value)
+              }
               style={selectStyle}
             >
               <option>SCALPING</option>
@@ -302,7 +446,9 @@ Format:
                 type="checkbox"
                 checked={backtestMode}
                 onChange={() =>
-                  setBacktestMode(!backtestMode)
+                  setBacktestMode(
+                    !backtestMode
+                  )
                 }
               />
               Backtest Mode
@@ -313,7 +459,9 @@ Format:
                 type="checkbox"
                 checked={useDeterministic}
                 onChange={() =>
-                  setUseDeterministic(!useDeterministic)
+                  setUseDeterministic(
+                    !useDeterministic
+                  )
                 }
               />
               Deterministic Engine
@@ -324,7 +472,9 @@ Format:
                 type="checkbox"
                 checked={useLivePrice}
                 onChange={() =>
-                  setUseLivePrice(!useLivePrice)
+                  setUseLivePrice(
+                    !useLivePrice
+                  )
                 }
               />
               Live Price Engine
@@ -343,18 +493,56 @@ Format:
           />
 
           {preview && (
+
             <img
               src={preview}
               alt=""
               style={{
                 width: "100%",
-                maxHeight: 400,
+                maxHeight: 420,
                 objectFit: "contain",
                 marginTop: 20,
                 borderRadius: 20,
-                border: "1px solid #D4AF37",
+                border:
+                  "1px solid #D4AF37",
               }}
             />
+
+          )}
+
+          {ocrText && (
+
+            <div
+              style={{
+                marginTop: 20,
+                background: "#050816",
+                padding: 14,
+                borderRadius: 14,
+                border:
+                  "1px solid #333",
+              }}
+            >
+
+              <h3
+                style={{
+                  color: "#D4AF37",
+                }}
+              >
+                OCR Detection
+              </h3>
+
+              <p
+                style={{
+                  color: "#999",
+                  fontSize: 14,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {ocrText.slice(0, 500)}
+              </p>
+
+            </div>
+
           )}
 
           <button
@@ -372,7 +560,9 @@ Format:
               fontSize: 18,
             }}
           >
-            {loading ? "Analyzing..." : "Scan Chart"}
+            {loading
+              ? "Analyzing..."
+              : "Scan Chart"}
           </button>
 
         </div>
@@ -384,7 +574,8 @@ Format:
               marginTop: 24,
               background: "#111827",
               borderRadius: 20,
-              border: "1px solid #D4AF37",
+              border:
+                "1px solid #D4AF37",
               padding: 20,
             }}
           >
@@ -400,18 +591,67 @@ Format:
 
             <div style={gridStyle}>
 
-              <Card title="PAIR" value={result.pair} />
-              <Card title="TIMEFRAME" value={result.timeframe} />
-              <Card title="SIGNAL" value={result.signal} />
-              <Card title="CONFIDENCE" value={`${result.confidence}%`} />
-              <Card title="ENTRY" value={result.entry} />
-              <Card title="STOP LOSS" value={result.stopLoss} />
-              <Card title="TP1" value={result.tp1} />
-              <Card title="TP2" value={result.tp2} />
-              <Card title="TP3" value={result.tp3} />
-              <Card title="R:R" value={result.riskReward} />
-              <Card title="VOLATILITY" value={result.volatility} />
-              <Card title="QUALITY" value={result.setupQuality} />
+              <Card
+                title="PAIR"
+                value={result.pair}
+              />
+
+              <Card
+                title="TIMEFRAME"
+                value={result.timeframe}
+              />
+
+              <Card
+                title="SIGNAL"
+                value={result.signal}
+              />
+
+              <Card
+                title="CONFIDENCE"
+                value={`${result.confidence}%`}
+              />
+
+              <Card
+                title="ENTRY"
+                value={result.entry}
+              />
+
+              <Card
+                title="STOP LOSS"
+                value={result.stopLoss}
+              />
+
+              <Card
+                title="TP1"
+                value={result.tp1}
+              />
+
+              <Card
+                title="TP2"
+                value={result.tp2}
+              />
+
+              <Card
+                title="TP3"
+                value={result.tp3}
+              />
+
+              <Card
+                title="R:R"
+                value={result.riskReward}
+              />
+
+              <Card
+                title="VOLATILITY"
+                value={result.volatility}
+              />
+
+              <Card
+                title="QUALITY"
+                value={
+                  result.setupQuality
+                }
+              />
 
             </div>
 
@@ -421,12 +661,50 @@ Format:
                 Analyst Narrative
               </h3>
 
-              <p>📈 {result.analysis?.trend}</p>
-              <p>🏗 {result.analysis?.structure}</p>
-              <p>💧 {result.analysis?.liquidity}</p>
-              <p>⚡ {result.analysis?.momentum}</p>
-              <p>🌪 {result.analysis?.volatility}</p>
-              <p>🎯 {result.analysis?.execution}</p>
+              <p>
+                📈
+                {result.analysis?.trend}
+              </p>
+
+              <p>
+                🏗
+                {
+                  result.analysis
+                    ?.structure
+                }
+              </p>
+
+              <p>
+                💧
+                {
+                  result.analysis
+                    ?.liquidity
+                }
+              </p>
+
+              <p>
+                ⚡
+                {
+                  result.analysis
+                    ?.momentum
+                }
+              </p>
+
+              <p>
+                🌪
+                {
+                  result.analysis
+                    ?.volatility
+                }
+              </p>
+
+              <p>
+                🎯
+                {
+                  result.analysis
+                    ?.execution
+                }
+              </p>
 
             </div>
 
@@ -436,13 +714,58 @@ Format:
                 Smart Money Concepts
               </h3>
 
-              <p>🏛 {result.smc?.marketStructure}</p>
-              <p>📦 {result.smc?.orderBlocks}</p>
-              <p>🌀 {result.smc?.fvg}</p>
-              <p>💰 {result.smc?.liquidityZones}</p>
-              <p>🔄 {result.smc?.bosChoch}</p>
-              <p>⚖️ {result.smc?.premiumDiscount}</p>
-              <p>🎭 {result.smc?.manipulation}</p>
+              <p>
+                🏛
+                {
+                  result.smc
+                    ?.marketStructure
+                }
+              </p>
+
+              <p>
+                📦
+                {
+                  result.smc
+                    ?.orderBlocks
+                }
+              </p>
+
+              <p>
+                🌀
+                {result.smc?.fvg}
+              </p>
+
+              <p>
+                💰
+                {
+                  result.smc
+                    ?.liquidityZones
+                }
+              </p>
+
+              <p>
+                🔄
+                {
+                  result.smc
+                    ?.bosChoch
+                }
+              </p>
+
+              <p>
+                ⚖️
+                {
+                  result.smc
+                    ?.premiumDiscount
+                }
+              </p>
+
+              <p>
+                🎭
+                {
+                  result.smc
+                    ?.manipulation
+                }
+              </p>
 
             </div>
 
@@ -454,27 +777,42 @@ Format:
 
               <FactorBar
                 label="Trend Strength"
-                value={result.factors?.trendStrength || 0}
+                value={
+                  result.factors
+                    ?.trendStrength || 0
+                }
               />
 
               <FactorBar
                 label="Momentum"
-                value={result.factors?.momentum || 0}
+                value={
+                  result.factors
+                    ?.momentum || 0
+                }
               />
 
               <FactorBar
                 label="Liquidity"
-                value={result.factors?.liquidity || 0}
+                value={
+                  result.factors
+                    ?.liquidity || 0
+                }
               />
 
               <FactorBar
                 label="Structure"
-                value={result.factors?.structure || 0}
+                value={
+                  result.factors
+                    ?.structure || 0
+                }
               />
 
               <FactorBar
                 label="Volatility"
-                value={result.factors?.volatility || 0}
+                value={
+                  result.factors
+                    ?.volatility || 0
+                }
               />
 
             </div>
@@ -483,41 +821,6 @@ Format:
 
         )}
 
-      </div>
-
-    </div>
-  );
-}
-
-function Card({ title, value }) {
-
-  return (
-    <div
-      style={{
-        background: "#050816",
-        border: "1px solid #D4AF37",
-        borderRadius: 16,
-        padding: 14,
-      }}
-    >
-
-      <div
-        style={{
-          color: "#888",
-          fontSize: 12,
-        }}
-      >
-        {title}
-      </div>
-
-      <div
-        style={{
-          marginTop: 8,
-          fontWeight: "bold",
-          fontSize: 18,
-        }}
-      >
-        {value}
       </div>
 
     </div>
