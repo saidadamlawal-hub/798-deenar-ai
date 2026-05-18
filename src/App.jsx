@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import Tesseract from "tesseract.js";
 
 const genAI = new GoogleGenerativeAI(
   import.meta.env.VITE_GEMINI_API_KEY
@@ -9,252 +8,111 @@ const genAI = new GoogleGenerativeAI(
 export default function App() {
 
   const [preview, setPreview] = useState(null);
-
   const [loading, setLoading] = useState(false);
 
-  const [ocrText, setOcrText] = useState("");
-
   const [pair, setPair] = useState("AUTO");
-
   const [timeframe, setTimeframe] = useState("AUTO");
+  const [tradeType, setTradeType] = useState("INTRADAY");
 
-  const [tradeStyle, setTradeStyle] =
-    useState("INTRADAY");
-
-  const [backtestMode, setBacktestMode] =
-    useState(false);
-
-  const [useDeterministic, setUseDeterministic] =
-    useState(false);
-
-  const [useLivePrice, setUseLivePrice] =
-    useState(false);
+  const [useGemini, setUseGemini] = useState(true);
+  const [useDeterministic, setUseDeterministic] = useState(false);
+  const [useLivePrice, setUseLivePrice] = useState(false);
+  const [backtestMode, setBacktestMode] = useState(false);
 
   const [result, setResult] = useState(null);
 
-  async function handleImage(e) {
-
-    const file = e.target.files[0];
-
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onloadend = async () => {
-
-      const imageData = reader.result;
-
-      setPreview(imageData);
-
-      runOCR(imageData);
-    };
-
-    reader.readAsDataURL(file);
-  }
-
-  async function runOCR(image) {
-
-    try {
-
-      const {
-        data: { text },
-      } = await Tesseract.recognize(image, "eng");
-
-      setOcrText(text);
-
-      detectPair(text);
-
-      detectTimeframe(text);
-
-    } catch (err) {
-
-      console.log(err);
-    }
-  }
-
-  function detectPair(text) {
-
-    const upper = text.toUpperCase();
-
-    const pairs = [
-      "XAUUSD",
-      "EURUSD",
-      "GBPUSD",
-      "USDJPY",
-      "BTCUSD",
-      "ETHUSD",
-      "NAS100",
-      "US30",
-    ];
-
-    for (const p of pairs) {
-
-      if (upper.includes(p)) {
-
-        setPair(p);
-
-        return;
-      }
-    }
-  }
-
-  function detectTimeframe(text) {
-
-    const upper = text.toUpperCase();
-
-    const tfs = [
-      "M1",
-      "M5",
-      "M15",
-      "M30",
-      "H1",
-      "H4",
-      "D1",
-      "W1",
-    ];
-
-    for (const tf of tfs) {
-
-      if (upper.includes(tf)) {
-
-        setTimeframe(tf);
-
-        return;
-      }
-    }
-  }
-
-  async function scanChart() {
+  async function analyzeChart() {
 
     if (!preview) {
-
-      alert("Upload chart image first");
-
+      alert("Upload chart first");
       return;
     }
 
     setLoading(true);
-
     setResult(null);
 
     try {
 
-      const model =
-        genAI.getGenerativeModel({
-          model: "gemini-1.5-flash",
-        });
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash"
+      });
 
       const prompt = `
-You are an elite institutional trading AI.
+You are an elite institutional forex analyst.
 
-Analyze this trading chart professionally.
+Analyze this chart professionally.
 
-Use:
-- Smart Money Concepts
-- ICT concepts
-- market structure
-- BOS
-- CHOCH
-- liquidity
-- volatility
-- momentum
-- manipulation
-- premium/discount
-
-OCR DETECTED TEXT:
-${ocrText}
-
-SETTINGS:
-
-PAIR:
-${pair}
-
-TIMEFRAME:
-${timeframe}
-
-TRADE STYLE:
-${tradeStyle}
-
-BACKTEST MODE:
-${backtestMode ? "ON" : "OFF"}
-
-DETERMINISTIC ENGINE:
-${useDeterministic ? "ON" : "OFF"}
-
-LIVE PRICE ENGINE:
-${useLivePrice ? "ON" : "OFF"}
-
-IMPORTANT:
-- If OCR detected pair/timeframe correctly,
-use them.
-- Return STRICT JSON ONLY.
-- No markdown.
-
-FORMAT:
+Return STRICT JSON only.
 
 {
   "pair": "",
   "timeframe": "",
-  "signal": "",
+  "signal": "BUY or SELL or HOLD",
   "confidence": 0,
   "entry": "",
-  "stopLoss": "",
+  "sl": "",
   "tp1": "",
   "tp2": "",
   "tp3": "",
   "riskReward": "",
   "volatility": "",
-  "setupQuality": "",
-  "duration": "",
-  "analysis": {
-    "trend": "",
-    "structure": "",
-    "liquidity": "",
-    "momentum": "",
-    "volatility": "",
-    "execution": ""
-  },
-  "smc": {
-    "marketStructure": "",
-    "orderBlocks": "",
-    "fvg": "",
-    "liquidityZones": "",
-    "bosChoch": "",
-    "premiumDiscount": "",
-    "manipulation": ""
-  },
-  "factors": {
-    "trendStrength": 0,
-    "momentum": 0,
-    "liquidity": 0,
-    "structure": 0,
-    "volatility": 0
-  }
+  "trend": "",
+  "structure": "",
+  "liquidity": "",
+  "momentum": "",
+  "narrative": "",
+  "bos": "",
+  "choch": "",
+  "fvg": "",
+  "orderBlock": ""
 }
+
+Rules:
+
+- Detect pair automatically if AUTO
+- Detect timeframe automatically if AUTO
+- Use Smart Money Concepts
+- Use institutional analysis
+- Use liquidity concepts
+- Detect BOS and CHOCH
+- Detect volatility
+- Detect momentum
+- Generate realistic targets
+- Never hallucinate impossible prices
+- Use current visible chart prices
+- Trade type:
+${tradeType}
+
+Selected Pair:
+${pair}
+
+Selected Timeframe:
+${timeframe}
+
+Backtest Mode:
+${backtestMode}
 `;
 
-      const imageData = preview.split(",")[1];
+      const imagePart = {
+        inlineData: {
+          data: preview.split(",")[1],
+          mimeType: "image/png",
+        },
+      };
 
-      const aiResult =
-        await model.generateContent([
-          prompt,
-          {
-            inlineData: {
-              mimeType: "image/png",
-              data: imageData,
-            },
-          },
-        ]);
+      const response = await model.generateContent([
+        prompt,
+        imagePart,
+      ]);
 
-      const response =
-        await aiResult.response;
+      const text = response.response.text();
 
-      let text = response.text();
+      const clean = text
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
 
-      text = text.replace(/```json/g, "");
-      text = text.replace(/```/g, "");
-
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(clean);
 
       setResult(parsed);
 
@@ -262,595 +120,246 @@ FORMAT:
 
       console.log(err);
 
-      alert("AI scan failed");
+      alert("AI analysis failed");
+
     }
 
     setLoading(false);
   }
 
-  function Card({ title, value }) {
+  function handleImage(e) {
 
-    return (
-      <div
-        style={{
-          background: "#050816",
-          border: "1px solid #D4AF37",
-          borderRadius: 16,
-          padding: 14,
-        }}
-      >
-        <div
-          style={{
-            color: "#888",
-            fontSize: 12,
-          }}
-        >
-          {title}
-        </div>
+    const file = e.target.files[0];
 
-        <div
-          style={{
-            marginTop: 8,
-            fontWeight: "bold",
-            fontSize: 18,
-          }}
-        >
-          {value}
-        </div>
-      </div>
-    );
-  }
+    if (!file) return;
 
-  function FactorBar({ label, value }) {
+    const reader = new FileReader();
 
-    return (
-      <div style={{ marginBottom: 14 }}>
+    reader.onloadend = () => {
+      setPreview(reader.result);
+    };
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 6,
-          }}
-        >
-          <span>{label}</span>
-          <span>{value}%</span>
-        </div>
-
-        <div
-          style={{
-            width: "100%",
-            height: 10,
-            background: "#222",
-            borderRadius: 20,
-          }}
-        >
-          <div
-            style={{
-              width: `${value}%`,
-              height: "100%",
-              background: "#D4AF37",
-              borderRadius: 20,
-            }}
-          />
-        </div>
-
-      </div>
-    );
+    reader.readAsDataURL(file);
   }
 
   return (
     <div
       style={{
+        background: "#0b1020",
         minHeight: "100vh",
-        background: "#050816",
         color: "white",
-        padding: 16,
+        padding: 20,
         fontFamily: "sans-serif",
       }}
     >
 
+      <h1
+        style={{
+          color: "#D4AF37",
+          fontSize: 32,
+          fontWeight: "bold",
+        }}
+      >
+        798 Deenar AI
+      </h1>
+
+      <p style={{ color: "#aaa" }}>
+        Institutional AI Market Scanner
+      </p>
+
       <div
         style={{
-          maxWidth: 900,
-          margin: "0 auto",
+          marginTop: 20,
+          background: "#111827",
+          border: "1px solid #D4AF37",
+          borderRadius: 20,
+          padding: 20,
         }}
       >
 
-        <h1
-          style={{
-            color: "#D4AF37",
-            fontSize: 34,
-            fontWeight: "bold",
-          }}
-        >
-          798 Deenar AI
-        </h1>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleImage}
+        />
 
-        <p style={{ color: "#999" }}>
-          Institutional AI Trading Scanner
-        </p>
+        <div style={{ marginTop: 20 }}>
 
-        <div
-          style={{
-            background: "#111827",
-            border: "1px solid #D4AF37",
-            borderRadius: 20,
-            padding: 20,
-            marginTop: 20,
-          }}
-        >
-
-          <h2>Scanner Settings</h2>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 12,
-              marginTop: 20,
-            }}
+          <select
+            value={pair}
+            onChange={(e) => setPair(e.target.value)}
           >
+            <option>AUTO</option>
+            <option>XAUUSD</option>
+            <option>EURUSD</option>
+            <option>GBPUSD</option>
+            <option>BTCUSD</option>
+          </select>
 
-            <select
-              value={pair}
-              onChange={(e) =>
-                setPair(e.target.value)
-              }
-              style={selectStyle}
-            >
-              <option>AUTO</option>
-              <option>XAUUSD</option>
-              <option>EURUSD</option>
-              <option>GBPUSD</option>
-              <option>BTCUSD</option>
-            </select>
-
-            <select
-              value={timeframe}
-              onChange={(e) =>
-                setTimeframe(e.target.value)
-              }
-              style={selectStyle}
-            >
-              <option>AUTO</option>
-              <option>M1</option>
-              <option>M5</option>
-              <option>M15</option>
-              <option>M30</option>
-              <option>H1</option>
-              <option>H4</option>
-              <option>D1</option>
-            </select>
-
-            <select
-              value={tradeStyle}
-              onChange={(e) =>
-                setTradeStyle(e.target.value)
-              }
-              style={selectStyle}
-            >
-              <option>SCALPING</option>
-              <option>INTRADAY</option>
-              <option>SWING</option>
-              <option>POSITION</option>
-              <option>AUTO</option>
-            </select>
-
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-
-            <label style={toggleStyle}>
-              <input
-                type="checkbox"
-                checked={backtestMode}
-                onChange={() =>
-                  setBacktestMode(
-                    !backtestMode
-                  )
-                }
-              />
-              Backtest Mode
-            </label>
-
-            <label style={toggleStyle}>
-              <input
-                type="checkbox"
-                checked={useDeterministic}
-                onChange={() =>
-                  setUseDeterministic(
-                    !useDeterministic
-                  )
-                }
-              />
-              Deterministic Engine
-            </label>
-
-            <label style={toggleStyle}>
-              <input
-                type="checkbox"
-                checked={useLivePrice}
-                onChange={() =>
-                  setUseLivePrice(
-                    !useLivePrice
-                  )
-                }
-              />
-              Live Price Engine
-            </label>
-
-          </div>
-
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImage}
-            style={{
-              marginTop: 20,
-              width: "100%",
-            }}
-          />
-
-          {preview && (
-
-            <img
-              src={preview}
-              alt=""
-              style={{
-                width: "100%",
-                maxHeight: 420,
-                objectFit: "contain",
-                marginTop: 20,
-                borderRadius: 20,
-                border:
-                  "1px solid #D4AF37",
-              }}
-            />
-
-          )}
-
-          {ocrText && (
-
-            <div
-              style={{
-                marginTop: 20,
-                background: "#050816",
-                padding: 14,
-                borderRadius: 14,
-                border:
-                  "1px solid #333",
-              }}
-            >
-
-              <h3
-                style={{
-                  color: "#D4AF37",
-                }}
-              >
-                OCR Detection
-              </h3>
-
-              <p
-                style={{
-                  color: "#999",
-                  fontSize: 14,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {ocrText.slice(0, 500)}
-              </p>
-
-            </div>
-
-          )}
-
-          <button
-            onClick={scanChart}
-            disabled={loading}
-            style={{
-              width: "100%",
-              marginTop: 20,
-              background: "#D4AF37",
-              color: "black",
-              border: "none",
-              padding: 16,
-              borderRadius: 20,
-              fontWeight: "bold",
-              fontSize: 18,
-            }}
+          <select
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            style={{ marginLeft: 10 }}
           >
-            {loading
-              ? "Analyzing..."
-              : "Scan Chart"}
-          </button>
+            <option>AUTO</option>
+            <option>M1</option>
+            <option>M5</option>
+            <option>M15</option>
+            <option>H1</option>
+            <option>H4</option>
+            <option>D1</option>
+          </select>
+
+          <select
+            value={tradeType}
+            onChange={(e) => setTradeType(e.target.value)}
+            style={{ marginLeft: 10 }}
+          >
+            <option>SCALPING</option>
+            <option>INTRADAY</option>
+            <option>SWING</option>
+            <option>POSITION</option>
+          </select>
 
         </div>
 
-        {result && (
+        <div style={{ marginTop: 20 }}>
 
-          <div
+          <label>
+            <input
+              type="checkbox"
+              checked={useGemini}
+              onChange={() => setUseGemini(!useGemini)}
+            />
+            Gemini Vision
+          </label>
+
+          <br />
+
+          <label>
+            <input
+              type="checkbox"
+              checked={useDeterministic}
+              onChange={() =>
+                setUseDeterministic(!useDeterministic)
+              }
+            />
+            Deterministic Engine
+          </label>
+
+          <br />
+
+          <label>
+            <input
+              type="checkbox"
+              checked={useLivePrice}
+              onChange={() =>
+                setUseLivePrice(!useLivePrice)
+              }
+            />
+            Live Price Engine
+          </label>
+
+          <br />
+
+          <label>
+            <input
+              type="checkbox"
+              checked={backtestMode}
+              onChange={() =>
+                setBacktestMode(!backtestMode)
+              }
+            />
+            Backtest Mode
+          </label>
+
+        </div>
+
+        {preview && (
+
+          <img
+            src={preview}
+            alt=""
             style={{
-              marginTop: 24,
-              background: "#111827",
+              width: "100%",
+              marginTop: 20,
               borderRadius: 20,
-              border:
-                "1px solid #D4AF37",
-              padding: 20,
+              maxHeight: 400,
+              objectFit: "contain",
+              border: "1px solid #D4AF37",
             }}
-          >
-
-            <h2
-              style={{
-                color: "#D4AF37",
-                marginBottom: 20,
-              }}
-            >
-              AI Trade Signal
-            </h2>
-
-            <div style={gridStyle}>
-
-              <Card
-                title="PAIR"
-                value={result.pair}
-              />
-
-              <Card
-                title="TIMEFRAME"
-                value={result.timeframe}
-              />
-
-              <Card
-                title="SIGNAL"
-                value={result.signal}
-              />
-
-              <Card
-                title="CONFIDENCE"
-                value={`${result.confidence}%`}
-              />
-
-              <Card
-                title="ENTRY"
-                value={result.entry}
-              />
-
-              <Card
-                title="STOP LOSS"
-                value={result.stopLoss}
-              />
-
-              <Card
-                title="TP1"
-                value={result.tp1}
-              />
-
-              <Card
-                title="TP2"
-                value={result.tp2}
-              />
-
-              <Card
-                title="TP3"
-                value={result.tp3}
-              />
-
-              <Card
-                title="R:R"
-                value={result.riskReward}
-              />
-
-              <Card
-                title="VOLATILITY"
-                value={result.volatility}
-              />
-
-              <Card
-                title="QUALITY"
-                value={
-                  result.setupQuality
-                }
-              />
-
-            </div>
-
-            <div style={sectionStyle}>
-
-              <h3 style={titleStyle}>
-                Analyst Narrative
-              </h3>
-
-              <p>
-                📈
-                {result.analysis?.trend}
-              </p>
-
-              <p>
-                🏗
-                {
-                  result.analysis
-                    ?.structure
-                }
-              </p>
-
-              <p>
-                💧
-                {
-                  result.analysis
-                    ?.liquidity
-                }
-              </p>
-
-              <p>
-                ⚡
-                {
-                  result.analysis
-                    ?.momentum
-                }
-              </p>
-
-              <p>
-                🌪
-                {
-                  result.analysis
-                    ?.volatility
-                }
-              </p>
-
-              <p>
-                🎯
-                {
-                  result.analysis
-                    ?.execution
-                }
-              </p>
-
-            </div>
-
-            <div style={sectionStyle}>
-
-              <h3 style={titleStyle}>
-                Smart Money Concepts
-              </h3>
-
-              <p>
-                🏛
-                {
-                  result.smc
-                    ?.marketStructure
-                }
-              </p>
-
-              <p>
-                📦
-                {
-                  result.smc
-                    ?.orderBlocks
-                }
-              </p>
-
-              <p>
-                🌀
-                {result.smc?.fvg}
-              </p>
-
-              <p>
-                💰
-                {
-                  result.smc
-                    ?.liquidityZones
-                }
-              </p>
-
-              <p>
-                🔄
-                {
-                  result.smc
-                    ?.bosChoch
-                }
-              </p>
-
-              <p>
-                ⚖️
-                {
-                  result.smc
-                    ?.premiumDiscount
-                }
-              </p>
-
-              <p>
-                🎭
-                {
-                  result.smc
-                    ?.manipulation
-                }
-              </p>
-
-            </div>
-
-            <div style={sectionStyle}>
-
-              <h3 style={titleStyle}>
-                Confidence Factors
-              </h3>
-
-              <FactorBar
-                label="Trend Strength"
-                value={
-                  result.factors
-                    ?.trendStrength || 0
-                }
-              />
-
-              <FactorBar
-                label="Momentum"
-                value={
-                  result.factors
-                    ?.momentum || 0
-                }
-              />
-
-              <FactorBar
-                label="Liquidity"
-                value={
-                  result.factors
-                    ?.liquidity || 0
-                }
-              />
-
-              <FactorBar
-                label="Structure"
-                value={
-                  result.factors
-                    ?.structure || 0
-                }
-              />
-
-              <FactorBar
-                label="Volatility"
-                value={
-                  result.factors
-                    ?.volatility || 0
-                }
-              />
-
-            </div>
-
-          </div>
+          />
 
         )}
 
+        <button
+          onClick={analyzeChart}
+          disabled={loading}
+          style={{
+            width: "100%",
+            marginTop: 20,
+            background: "#D4AF37",
+            color: "black",
+            border: "none",
+            padding: 16,
+            borderRadius: 16,
+            fontWeight: "bold",
+            fontSize: 18,
+          }}
+        >
+          {loading ? "Analyzing..." : "Scan Market"}
+        </button>
+
       </div>
+
+      {result && (
+
+        <div
+          style={{
+            marginTop: 30,
+            background: "#111827",
+            padding: 20,
+            borderRadius: 20,
+            border: "1px solid #D4AF37",
+          }}
+        >
+
+          <h2 style={{ color: "#D4AF37" }}>
+            AI Trade Signal
+          </h2>
+
+          <p>PAIR: {result.pair}</p>
+          <p>TIMEFRAME: {result.timeframe}</p>
+          <p>SIGNAL: {result.signal}</p>
+          <p>CONFIDENCE: {result.confidence}%</p>
+          <p>ENTRY: {result.entry}</p>
+          <p>STOP LOSS: {result.sl}</p>
+          <p>TP1: {result.tp1}</p>
+          <p>TP2: {result.tp2}</p>
+          <p>TP3: {result.tp3}</p>
+          <p>R:R: {result.riskReward}</p>
+          <p>VOLATILITY: {result.volatility}</p>
+
+          <hr />
+
+          <h3>Institutional Analysis</h3>
+
+          <p>{result.narrative}</p>
+
+          <p>BOS: {result.bos}</p>
+          <p>CHOCH: {result.choch}</p>
+          <p>FVG: {result.fvg}</p>
+          <p>ORDER BLOCK: {result.orderBlock}</p>
+
+          <p>TREND: {result.trend}</p>
+          <p>STRUCTURE: {result.structure}</p>
+          <p>LIQUIDITY: {result.liquidity}</p>
+          <p>MOMENTUM: {result.momentum}</p>
+
+        </div>
+
+      )}
 
     </div>
   );
 }
-
-const gridStyle = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 14,
-};
-
-const sectionStyle = {
-  marginTop: 30,
-};
-
-const titleStyle = {
-  color: "#D4AF37",
-  marginBottom: 16,
-};
-
-const selectStyle = {
-  background: "#050816",
-  color: "white",
-  border: "1px solid #D4AF37",
-  borderRadius: 12,
-  padding: 12,
-};
-
-const toggleStyle = {
-  display: "block",
-  marginBottom: 12,
-};
