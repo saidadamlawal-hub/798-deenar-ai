@@ -1,70 +1,28 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-import Tesseract from "tesseract.js";
-
-import {
-  RSI,
-  EMA,
-  ATR,
-  MACD,
-} from "technicalindicators";
+const genAI = new GoogleGenerativeAI(
+  import.meta.env.VITE_GEMINI_API_KEY
+);
 
 export default function App() {
 
-  const [pair, setPair] =
-    useState("XAU/USD");
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const [timeframe, setTimeframe] =
-    useState("30min");
+  const [pair, setPair] = useState("AUTO");
+  const [timeframe, setTimeframe] = useState("AUTO");
+  const [tradeStyle, setTradeStyle] = useState("INTRADAY");
 
-  const [tradeType, setTradeType] =
-    useState("Intraday");
+  const [backtestMode, setBacktestMode] = useState(false);
 
-  const [preview, setPreview] =
-    useState(null);
+  const [useDeterministic, setUseDeterministic] = useState(false);
 
-  const [result, setResult] =
-    useState(null);
+  const [useLivePrice, setUseLivePrice] = useState(false);
 
-  const [loading, setLoading] =
-    useState(false);
+  const [result, setResult] = useState(null);
 
-  const [ocrText, setOcrText] =
-    useState("");
-
-  const [marketData, setMarketData] =
-    useState(null);
-
-  const apiKey =
-    import.meta.env.VITE_TWELVE_API_KEY;
-
-  // FETCH MARKET DATA
-  useEffect(() => {
-
-    const fetchMarket = async () => {
-
-      try {
-
-        const res = await fetch(
-          `https://api.twelvedata.com/time_series?symbol=${pair}&interval=${timeframe}&outputsize=300&apikey=${apiKey}`
-        );
-
-        const data = await res.json();
-
-        setMarketData(data);
-
-      } catch (err) {
-
-        console.log(err);
-      }
-    };
-
-    fetchMarket();
-
-  }, [pair, timeframe]);
-
-  // IMAGE
-  const handleImage = async (e) => {
+  async function handleImage(e) {
 
     const file = e.target.files[0];
 
@@ -72,932 +30,524 @@ export default function App() {
 
     const reader = new FileReader();
 
-    reader.onloadend = async () => {
-
+    reader.onloadend = () => {
       setPreview(reader.result);
-
-      // OCR
-      try {
-
-        const result =
-          await Tesseract.recognize(
-            reader.result,
-            "eng"
-          );
-
-        const text =
-          result.data.text
-            .toUpperCase();
-
-        setOcrText(text);
-
-        // PAIRS
-        if (
-          text.includes("XAUUSD") ||
-          text.includes("GOLD")
-        ) {
-          setPair("XAU/USD");
-        }
-
-        if (
-          text.includes("EURUSD")
-        ) {
-          setPair("EUR/USD");
-        }
-
-        if (
-          text.includes("GBPUSD")
-        ) {
-          setPair("GBP/USD");
-        }
-
-        if (
-          text.includes("BTCUSD")
-        ) {
-          setPair("BTC/USD");
-        }
-
-        // TIMEFRAMES
-        if (
-          text.includes("M5")
-        ) {
-          setTimeframe("5min");
-        }
-
-        if (
-          text.includes("M15")
-        ) {
-          setTimeframe("15min");
-        }
-
-        if (
-          text.includes("M30")
-        ) {
-          setTimeframe("30min");
-        }
-
-        if (
-          text.includes("H1")
-        ) {
-          setTimeframe("1h");
-        }
-
-        if (
-          text.includes("H4")
-        ) {
-          setTimeframe("4h");
-        }
-
-      } catch (err) {
-
-        console.log(err);
-      }
     };
 
     reader.readAsDataURL(file);
-  };
+  }
 
-  // ANALYZE
-  const analyzeChart = async () => {
+  async function scanChart() {
 
-    if (!marketData?.values) {
-
-      alert("Market data unavailable");
-
+    if (!preview) {
+      alert("Upload chart image first");
       return;
     }
 
     setLoading(true);
+    setResult(null);
 
     try {
 
-      const candles =
-        marketData.values.reverse();
-
-      const closes =
-        candles.map((c) =>
-          parseFloat(c.close)
-        );
-
-      const highs =
-        candles.map((c) =>
-          parseFloat(c.high)
-        );
-
-      const lows =
-        candles.map((c) =>
-          parseFloat(c.low)
-        );
-
-      const opens =
-        candles.map((c) =>
-          parseFloat(c.open)
-        );
-
-      const currentPrice =
-        closes[closes.length - 1];
-
-      // LAST CANDLES
-      const lastOpen =
-        opens[opens.length - 1];
-
-      const lastClose =
-        closes[closes.length - 1];
-
-      const prevOpen =
-        opens[opens.length - 2];
-
-      const prevClose =
-        closes[closes.length - 2];
-
-      const lastHigh =
-        highs[highs.length - 1];
-
-      const lastLow =
-        lows[lows.length - 1];
-
-      // EMA
-      const ema20 =
-        EMA.calculate({
-          values: closes,
-          period: 20,
-        }).slice(-1)[0];
-
-      const ema50 =
-        EMA.calculate({
-          values: closes,
-          period: 50,
-        }).slice(-1)[0];
-
-      const ema200 =
-        EMA.calculate({
-          values: closes,
-          period: 200,
-        }).slice(-1)[0];
-
-      // RSI
-      const rsi =
-        RSI.calculate({
-          values: closes,
-          period: 14,
-        }).slice(-1)[0];
-
-      // ATR
-      const atr =
-        ATR.calculate({
-          high: highs,
-          low: lows,
-          close: closes,
-          period: 14,
-        }).slice(-1)[0];
-
-      // MACD
-      const macd =
-        MACD.calculate({
-          values: closes,
-          fastPeriod: 12,
-          slowPeriod: 26,
-          signalPeriod: 9,
-          SimpleMAOscillator: false,
-          SimpleMASignal: false,
-        });
-
-      const latestMACD =
-        macd[macd.length - 1];
-
-      // TREND
-      let trend =
-        "RANGING";
-
-      if (
-        ema20 > ema50 &&
-        ema50 > ema200
-      ) {
-        trend =
-          "BULLISH";
-      }
-
-      if (
-        ema20 < ema50 &&
-        ema50 < ema200
-      ) {
-        trend =
-          "BEARISH";
-      }
-
-      // SIGNAL
-      let signal =
-        "HOLD";
-
-      if (
-        trend === "BULLISH" &&
-        rsi > 55 &&
-        latestMACD.histogram > 0
-      ) {
-        signal =
-          "BUY";
-      }
-
-      if (
-        trend === "BEARISH" &&
-        rsi < 45 &&
-        latestMACD.histogram < 0
-      ) {
-        signal =
-          "SELL";
-      }
-
-      // PATTERN ENGINE
-      let pattern =
-        "No strong candle pattern";
-
-      let candleScore = 0;
-
-      // BULLISH ENGULFING
-      if (
-        prevClose < prevOpen &&
-        lastClose > lastOpen &&
-        lastClose > prevOpen &&
-        lastOpen < prevClose
-      ) {
-        pattern =
-          "Bullish Engulfing";
-
-        candleScore += 12;
-
-        signal = "BUY";
-      }
-
-      // BEARISH ENGULFING
-      if (
-        prevClose > prevOpen &&
-        lastClose < lastOpen &&
-        lastOpen > prevClose &&
-        lastClose < prevOpen
-      ) {
-        pattern =
-          "Bearish Engulfing";
-
-        candleScore += 12;
-
-        signal = "SELL";
-      }
-
-      // PINBAR
-      const candleBody =
-        Math.abs(
-          lastClose - lastOpen
-        );
-
-      const upperWick =
-        lastHigh -
-        Math.max(
-          lastClose,
-          lastOpen
-        );
-
-      const lowerWick =
-        Math.min(
-          lastClose,
-          lastOpen
-        ) - lastLow;
-
-      // BULLISH PINBAR
-      if (
-        lowerWick >
-        candleBody * 2
-      ) {
-
-        pattern =
-          "Bullish Pinbar";
-
-        candleScore += 10;
-
-        signal = "BUY";
-      }
-
-      // BEARISH PINBAR
-      if (
-        upperWick >
-        candleBody * 2
-      ) {
-
-        pattern =
-          "Bearish Pinbar";
-
-        candleScore += 10;
-
-        signal = "SELL";
-      }
-
-      // BREAKOUT
-      const recentHigh =
-        Math.max(
-          ...highs.slice(-15)
-        );
-
-      const recentLow =
-        Math.min(
-          ...lows.slice(-15)
-        );
-
-      let breakout =
-        "No breakout";
-
-      if (
-        currentPrice >
-        recentHigh * 0.999
-      ) {
-
-        breakout =
-          "Bullish breakout";
-
-        candleScore += 8;
-      }
-
-      if (
-        currentPrice <
-        recentLow * 1.001
-      ) {
-
-        breakout =
-          "Bearish breakout";
-
-        candleScore += 8;
-      }
-
-      // CONFIDENCE
-      let confidence = 55;
-
-      if (
-        trend !== "RANGING"
-      ) {
-        confidence += 10;
-      }
-
-      confidence += candleScore;
-
-      if (
-        latestMACD.histogram > 0 &&
-        signal === "BUY"
-      ) {
-        confidence += 8;
-      }
-
-      if (
-        latestMACD.histogram < 0 &&
-        signal === "SELL"
-      ) {
-        confidence += 8;
-      }
-
-      if (
-        rsi > 60 ||
-        rsi < 40
-      ) {
-        confidence += 6;
-      }
-
-      if (
-        confidence > 95
-      ) {
-        confidence = 95;
-      }
-
-      // VOLATILITY
-      let volatility =
-        "MODERATE";
-
-      if (
-        atr >
-        currentPrice * 0.003
-      ) {
-        volatility =
-          "HIGH";
-      }
-
-      // DURATION
-      let duration =
-        "4-12 Hours";
-
-      if (
-        tradeType === "Scalping"
-      ) {
-        duration =
-          "15-45 Minutes";
-      }
-
-      if (
-        tradeType === "Swing"
-      ) {
-        duration =
-          "2-5 Days";
-      }
-
-      if (
-        tradeType === "Position"
-      ) {
-        duration =
-          "1-3 Weeks";
-      }
-
-      // SUPPORT/RESISTANCE
-      const resistance =
-        Math.max(
-          ...highs.slice(-20)
-        ).toFixed(3);
-
-      const support =
-        Math.min(
-          ...lows.slice(-20)
-        ).toFixed(3);
-
-      // TP/SL
-      let sl;
-      let tp1;
-      let tp2;
-      let tp3;
-
-      if (
-        signal === "BUY"
-      ) {
-
-        sl =
-          (
-            currentPrice - atr
-          ).toFixed(3);
-
-        tp1 =
-          (
-            currentPrice +
-            atr * 1.5
-          ).toFixed(3);
-
-        tp2 =
-          (
-            currentPrice +
-            atr * 2.5
-          ).toFixed(3);
-
-        tp3 =
-          (
-            currentPrice +
-            atr * 4
-          ).toFixed(3);
-
-      } else {
-
-        sl =
-          (
-            currentPrice + atr
-          ).toFixed(3);
-
-        tp1 =
-          (
-            currentPrice -
-            atr * 1.5
-          ).toFixed(3);
-
-        tp2 =
-          (
-            currentPrice -
-            atr * 2.5
-          ).toFixed(3);
-
-        tp3 =
-          (
-            currentPrice -
-            atr * 4
-          ).toFixed(3);
-      }
-
-      // BOS / CHOCH
-      const bos =
-        signal === "BUY"
-          ? "Bullish BOS confirmed above swing highs."
-          : "Bearish BOS confirmed below swing lows.";
-
-      const choch =
-        signal === "BUY"
-          ? "Bullish continuation structure active."
-          : "Bearish continuation structure active.";
-
-      // LIQUIDITY
-      const liquidity =
-        signal === "BUY"
-          ? "Buy-side liquidity targeted above highs."
-          : "Sell-side liquidity targeted below lows.";
-
-      // STRUCTURE
-      const structure =
-        trend === "BULLISH"
-          ? "Bullish structure with continuation bias."
-          : trend === "BEARISH"
-          ? "Bearish structure with continuation bias."
-          : "Ranging market conditions.";
-
-      // NARRATIVE
-      const narrative =
-        `${pair} ${timeframe} ${tradeType} setup shows ${signal.toLowerCase()} conditions. Price action engine detected ${pattern}. Momentum profile, EMA trend alignment, volatility structure, breakout analysis, liquidity mapping, BOS/CHOCH continuation, and institutional flow all align toward ${signal}.`;
-
-      setResult({
-        signal,
-        confidence,
-        currentPrice:
-          currentPrice.toFixed(3),
-        trend,
-        rsi:
-          rsi.toFixed(2),
-        volatility,
-        duration,
-        pattern,
-        breakout,
-        support,
-        resistance,
-        sl,
-        tp1,
-        tp2,
-        tp3,
-        bos,
-        choch,
-        liquidity,
-        structure,
-        narrative,
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
       });
+
+      const prompt = `
+You are an elite institutional trading AI.
+
+Analyze this forex or gold trading chart professionally.
+
+Rules:
+- Think like smart money / institutional trader
+- Use SMC concepts
+- Detect:
+  trend
+  momentum
+  liquidity
+  BOS
+  CHOCH
+  volatility
+  manipulation
+  premium/discount
+
+Settings:
+PAIR: ${pair}
+TIMEFRAME: ${timeframe}
+TRADE STYLE: ${tradeStyle}
+
+BACKTEST MODE:
+${backtestMode ? "ON" : "OFF"}
+
+DETERMINISTIC ENGINE:
+${useDeterministic ? "ON" : "OFF"}
+
+LIVE PRICE ENGINE:
+${useLivePrice ? "ON" : "OFF"}
+
+Return STRICT JSON only.
+
+Format:
+
+{
+  "pair": "",
+  "timeframe": "",
+  "signal": "",
+  "confidence": 0,
+  "entry": "",
+  "stopLoss": "",
+  "tp1": "",
+  "tp2": "",
+  "tp3": "",
+  "riskReward": "",
+  "volatility": "",
+  "setupQuality": "",
+  "analysis": {
+    "trend": "",
+    "structure": "",
+    "liquidity": "",
+    "momentum": "",
+    "volatility": "",
+    "execution": ""
+  },
+  "smc": {
+    "marketStructure": "",
+    "orderBlocks": "",
+    "fvg": "",
+    "liquidityZones": "",
+    "bosChoch": "",
+    "premiumDiscount": "",
+    "manipulation": ""
+  },
+  "factors": {
+    "trendStrength": 0,
+    "momentum": 0,
+    "liquidity": 0,
+    "structure": 0,
+    "volatility": 0
+  }
+}
+`;
+
+      const imageData = preview.split(",")[1];
+
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            mimeType: "image/png",
+            data: imageData,
+          },
+        },
+      ]);
+
+      const response = await result.response;
+
+      let text = response.text();
+
+      text = text.replace(/```json/g, "");
+      text = text.replace(/```/g, "");
+
+      const parsed = JSON.parse(text);
+
+      setResult(parsed);
 
     } catch (err) {
 
       console.log(err);
 
-      alert(
-        "AI analysis failed"
-      );
+      alert("AI analysis failed");
+
     }
 
     setLoading(false);
-  };
+  }
+
+  function FactorBar({ label, value }) {
+
+    return (
+      <div style={{ marginBottom: 14 }}>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: 6,
+          }}
+        >
+          <span>{label}</span>
+          <span>{value}%</span>
+        </div>
+
+        <div
+          style={{
+            width: "100%",
+            height: 10,
+            background: "#222",
+            borderRadius: 20,
+          }}
+        >
+          <div
+            style={{
+              width: `${value}%`,
+              height: "100%",
+              background: "#D4AF37",
+              borderRadius: 20,
+            }}
+          />
+        </div>
+
+      </div>
+    );
+  }
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "#0b1020",
+        background: "#050816",
         color: "white",
-        fontFamily: "Arial",
+        padding: 16,
+        fontFamily: "sans-serif",
       }}
     >
-      {/* HEADER */}
+
       <div
         style={{
-          padding: "20px",
-          borderBottom:
-            "1px solid #D4AF37",
+          maxWidth: 900,
+          margin: "0 auto",
         }}
       >
+
         <h1
           style={{
-            margin: 0,
             color: "#D4AF37",
+            fontSize: 34,
+            fontWeight: "bold",
           }}
         >
           798 Deenar AI
         </h1>
 
-        <p
-          style={{
-            color: "#aaa",
-          }}
-        >
-          Institutional AI Scanner
+        <p style={{ color: "#999" }}>
+          Institutional AI Trading Scanner
         </p>
-      </div>
 
-      <div
-        style={{
-          padding: "16px",
-        }}
-      >
-        {/* SETTINGS */}
         <div
           style={{
             background: "#111827",
-            border:
-              "1px solid #D4AF37",
-            borderRadius: "18px",
-            padding: "18px",
-            marginBottom: "20px",
+            border: "1px solid #D4AF37",
+            borderRadius: 20,
+            padding: 20,
+            marginTop: 20,
           }}
         >
-          <h2
-            style={{
-              color: "#D4AF37",
-            }}
-          >
-            Market Settings
-          </h2>
 
-          <select
-            value={pair}
-            onChange={(e) =>
-              setPair(e.target.value)
-            }
-            style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "12px",
-              marginBottom: "12px",
-            }}
-          >
-            <option>XAU/USD</option>
-            <option>EUR/USD</option>
-            <option>GBP/USD</option>
-            <option>BTC/USD</option>
-          </select>
+          <h2>Scanner Settings</h2>
 
-          <select
-            value={timeframe}
-            onChange={(e) =>
-              setTimeframe(
-                e.target.value
-              )
-            }
+          <div
             style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "12px",
-              marginBottom: "12px",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              marginTop: 20,
             }}
           >
-            <option>5min</option>
-            <option>15min</option>
-            <option>30min</option>
-            <option>1h</option>
-            <option>4h</option>
-          </select>
 
-          <select
-            value={tradeType}
-            onChange={(e) =>
-              setTradeType(
-                e.target.value
-              )
-            }
-            style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "12px",
-            }}
-          >
-            <option>Scalping</option>
-            <option>Intraday</option>
-            <option>Swing</option>
-            <option>Position</option>
-          </select>
-        </div>
+            <select
+              value={pair}
+              onChange={(e) => setPair(e.target.value)}
+              style={selectStyle}
+            >
+              <option>AUTO</option>
+              <option>XAUUSD</option>
+              <option>EURUSD</option>
+              <option>GBPUSD</option>
+              <option>BTCUSD</option>
+            </select>
 
-        {/* UPLOAD */}
-        <div
-          style={{
-            background: "#111827",
-            border:
-              "1px solid #D4AF37",
-            borderRadius: "18px",
-            padding: "18px",
-          }}
-        >
-          <h2
-            style={{
-              color: "#D4AF37",
-            }}
-          >
-            Upload TradingView Chart
-          </h2>
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              style={selectStyle}
+            >
+              <option>AUTO</option>
+              <option>M1</option>
+              <option>M5</option>
+              <option>M15</option>
+              <option>M30</option>
+              <option>H1</option>
+              <option>H4</option>
+              <option>D1</option>
+            </select>
+
+            <select
+              value={tradeStyle}
+              onChange={(e) => setTradeStyle(e.target.value)}
+              style={selectStyle}
+            >
+              <option>SCALPING</option>
+              <option>INTRADAY</option>
+              <option>SWING</option>
+              <option>POSITION</option>
+              <option>AUTO</option>
+            </select>
+
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+
+            <label style={toggleStyle}>
+              <input
+                type="checkbox"
+                checked={backtestMode}
+                onChange={() =>
+                  setBacktestMode(!backtestMode)
+                }
+              />
+              Backtest Mode
+            </label>
+
+            <label style={toggleStyle}>
+              <input
+                type="checkbox"
+                checked={useDeterministic}
+                onChange={() =>
+                  setUseDeterministic(!useDeterministic)
+                }
+              />
+              Deterministic Engine
+            </label>
+
+            <label style={toggleStyle}>
+              <input
+                type="checkbox"
+                checked={useLivePrice}
+                onChange={() =>
+                  setUseLivePrice(!useLivePrice)
+                }
+              />
+              Live Price Engine
+            </label>
+
+          </div>
 
           <input
             type="file"
             accept="image/*"
             onChange={handleImage}
+            style={{
+              marginTop: 20,
+              width: "100%",
+            }}
           />
 
           {preview && (
             <img
               src={preview}
-              alt="preview"
+              alt=""
               style={{
                 width: "100%",
-                maxHeight: "320px",
+                maxHeight: 400,
                 objectFit: "contain",
-                marginTop: "16px",
-                borderRadius: "16px",
-                border:
-                  "2px solid #D4AF37",
+                marginTop: 20,
+                borderRadius: 20,
+                border: "1px solid #D4AF37",
               }}
             />
           )}
 
           <button
-            onClick={analyzeChart}
+            onClick={scanChart}
             disabled={loading}
             style={{
               width: "100%",
-              marginTop: "18px",
+              marginTop: 20,
               background: "#D4AF37",
-              color: "#000",
+              color: "black",
               border: "none",
-              padding: "14px",
-              borderRadius: "14px",
+              padding: 16,
+              borderRadius: 20,
               fontWeight: "bold",
+              fontSize: 18,
             }}
           >
-            {loading
-              ? "AI Scanning..."
-              : "Analyze Chart"}
+            {loading ? "Analyzing..." : "Scan Chart"}
           </button>
+
         </div>
 
-        {/* OCR */}
-        {ocrText && (
+        {result && (
+
           <div
             style={{
-              marginTop: "20px",
+              marginTop: 24,
               background: "#111827",
-              border:
-                "1px solid #D4AF37",
-              borderRadius: "18px",
-              padding: "18px",
+              borderRadius: 20,
+              border: "1px solid #D4AF37",
+              padding: 20,
             }}
           >
+
             <h2
               style={{
                 color: "#D4AF37",
+                marginBottom: 20,
               }}
             >
-              OCR Detection
+              AI Trade Signal
             </h2>
 
-            <p>
-              Pair: {pair}
-            </p>
+            <div style={gridStyle}>
 
-            <p>
-              Timeframe:
-              {" "}
-              {timeframe}
-            </p>
-          </div>
-        )}
+              <Card title="PAIR" value={result.pair} />
+              <Card title="TIMEFRAME" value={result.timeframe} />
+              <Card title="SIGNAL" value={result.signal} />
+              <Card title="CONFIDENCE" value={`${result.confidence}%`} />
+              <Card title="ENTRY" value={result.entry} />
+              <Card title="STOP LOSS" value={result.stopLoss} />
+              <Card title="TP1" value={result.tp1} />
+              <Card title="TP2" value={result.tp2} />
+              <Card title="TP3" value={result.tp3} />
+              <Card title="R:R" value={result.riskReward} />
+              <Card title="VOLATILITY" value={result.volatility} />
+              <Card title="QUALITY" value={result.setupQuality} />
 
-        {/* RESULTS */}
-        {result && (
-          <div
-            style={{
-              marginTop: "20px",
-            }}
-          >
-            <div
-              style={{
-                background: "#111827",
-                border:
-                  "1px solid #D4AF37",
-                borderRadius: "18px",
-                padding: "18px",
-              }}
-            >
-              <h2
-                style={{
-                  color: "#D4AF37",
-                }}
-              >
-                Trade Intelligence
-              </h2>
-
-              <h1>
-                {result.signal}
-              </h1>
-
-              <h2>
-                Confidence:
-                {" "}
-                {result.confidence}%
-              </h2>
-
-              <p>
-                {result.narrative}
-              </p>
-
-              <hr />
-
-              <p>
-                Current Price:
-                {" "}
-                {result.currentPrice}
-              </p>
-
-              <p>
-                Trend:
-                {" "}
-                {result.trend}
-              </p>
-
-              <p>
-                RSI:
-                {" "}
-                {result.rsi}
-              </p>
-
-              <p>
-                Volatility:
-                {" "}
-                {result.volatility}
-              </p>
-
-              <p>
-                Duration:
-                {" "}
-                {result.duration}
-              </p>
-
-              <hr />
-
-              <p>
-                Candle Pattern:
-                {" "}
-                {result.pattern}
-              </p>
-
-              <p>
-                Breakout:
-                {" "}
-                {result.breakout}
-              </p>
-
-              <hr />
-
-              <p>
-                Support:
-                {" "}
-                {result.support}
-              </p>
-
-              <p>
-                Resistance:
-                {" "}
-                {result.resistance}
-              </p>
-
-              <p>
-                Stop Loss:
-                {" "}
-                {result.sl}
-              </p>
-
-              <p>
-                TP1:
-                {" "}
-                {result.tp1}
-              </p>
-
-              <p>
-                TP2:
-                {" "}
-                {result.tp2}
-              </p>
-
-              <p>
-                TP3:
-                {" "}
-                {result.tp3}
-              </p>
-
-              <hr />
-
-              <p>
-                Structure:
-                {" "}
-                {result.structure}
-              </p>
-
-              <p>
-                BOS:
-                {" "}
-                {result.bos}
-              </p>
-
-              <p>
-                CHOCH:
-                {" "}
-                {result.choch}
-              </p>
-
-              <p>
-                Liquidity:
-                {" "}
-                {result.liquidity}
-              </p>
             </div>
+
+            <div style={sectionStyle}>
+
+              <h3 style={titleStyle}>
+                Analyst Narrative
+              </h3>
+
+              <p>📈 {result.analysis?.trend}</p>
+              <p>🏗 {result.analysis?.structure}</p>
+              <p>💧 {result.analysis?.liquidity}</p>
+              <p>⚡ {result.analysis?.momentum}</p>
+              <p>🌪 {result.analysis?.volatility}</p>
+              <p>🎯 {result.analysis?.execution}</p>
+
+            </div>
+
+            <div style={sectionStyle}>
+
+              <h3 style={titleStyle}>
+                Smart Money Concepts
+              </h3>
+
+              <p>🏛 {result.smc?.marketStructure}</p>
+              <p>📦 {result.smc?.orderBlocks}</p>
+              <p>🌀 {result.smc?.fvg}</p>
+              <p>💰 {result.smc?.liquidityZones}</p>
+              <p>🔄 {result.smc?.bosChoch}</p>
+              <p>⚖️ {result.smc?.premiumDiscount}</p>
+              <p>🎭 {result.smc?.manipulation}</p>
+
+            </div>
+
+            <div style={sectionStyle}>
+
+              <h3 style={titleStyle}>
+                Confidence Factors
+              </h3>
+
+              <FactorBar
+                label="Trend Strength"
+                value={result.factors?.trendStrength || 0}
+              />
+
+              <FactorBar
+                label="Momentum"
+                value={result.factors?.momentum || 0}
+              />
+
+              <FactorBar
+                label="Liquidity"
+                value={result.factors?.liquidity || 0}
+              />
+
+              <FactorBar
+                label="Structure"
+                value={result.factors?.structure || 0}
+              />
+
+              <FactorBar
+                label="Volatility"
+                value={result.factors?.volatility || 0}
+              />
+
+            </div>
+
           </div>
+
         )}
+
       </div>
+
     </div>
   );
 }
+
+function Card({ title, value }) {
+
+  return (
+    <div
+      style={{
+        background: "#050816",
+        border: "1px solid #D4AF37",
+        borderRadius: 16,
+        padding: 14,
+      }}
+    >
+
+      <div
+        style={{
+          color: "#888",
+          fontSize: 12,
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          fontWeight: "bold",
+          fontSize: 18,
+        }}
+      >
+        {value}
+      </div>
+
+    </div>
+  );
+}
+
+const gridStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 14,
+};
+
+const sectionStyle = {
+  marginTop: 30,
+};
+
+const titleStyle = {
+  color: "#D4AF37",
+  marginBottom: 16,
+};
+
+const selectStyle = {
+  background: "#050816",
+  color: "white",
+  border: "1px solid #D4AF37",
+  borderRadius: 12,
+  padding: 12,
+};
+
+const toggleStyle = {
+  display: "block",
+  marginBottom: 12,
+};
